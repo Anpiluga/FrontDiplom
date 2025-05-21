@@ -10,7 +10,12 @@ import {
     Box,
     Grid,
     Alert,
+    Paper,
+    FormControl,
+    InputLabel,
+    Divider,
 } from '@mui/material';
+import { LocalGasStation } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
@@ -49,6 +54,12 @@ const FuelForm = () => {
                     const response = await axios.get(`http://localhost:8080/admin/fuel-entries/${id}`, {
                         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
                     });
+
+                    // Форматируем дату и время для поля ввода datetime-local
+                    const dateTime = response.data.dateTime ?
+                        new Date(response.data.dateTime).toISOString().slice(0, 16) :
+                        '';
+
                     setFormData({
                         carId: response.data.carId,
                         odometerReading: response.data.odometerReading,
@@ -57,12 +68,24 @@ const FuelForm = () => {
                         volume: response.data.volume,
                         pricePerUnit: response.data.pricePerUnit,
                         totalCost: response.data.totalCost,
-                        dateTime: response.data.dateTime.slice(0, 16),
+                        dateTime: dateTime,
                     });
                 } catch (err) {
                     console.error('Error fetching fuel entry', err);
                     setError('Ошибка при загрузке записи о заправке');
                 }
+            } else {
+                // Устанавливаем текущую дату и время для нового ввода
+                const now = new Date();
+                const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+
+                setFormData(prev => ({
+                    ...prev,
+                    dateTime: localDateTime,
+                    fuelType: 'GASOLINE' // Установка значения по умолчанию
+                }));
             }
         };
 
@@ -77,13 +100,16 @@ const FuelForm = () => {
             [name]: value,
         }));
 
+        // Автоматический расчет общей стоимости при изменении объема или цены
         if (name === 'volume' || name === 'pricePerUnit') {
             const volume = name === 'volume' ? value : formData.volume;
             const pricePerUnit = name === 'pricePerUnit' ? value : formData.pricePerUnit;
+
             if (volume && pricePerUnit) {
+                const total = (parseFloat(volume) * parseFloat(pricePerUnit)).toFixed(2);
                 setFormData((prev) => ({
                     ...prev,
-                    totalCost: (parseFloat(volume) * parseFloat(pricePerUnit)).toFixed(2),
+                    totalCost: total,
                 }));
             }
         }
@@ -120,17 +146,27 @@ const FuelForm = () => {
     };
 
     return (
-        <Container maxWidth={false} sx={{ maxWidth: '1600px', mt: 4, pt: 4, px: { xs: 2, sm: 4 } }}>
+        <Container
+            maxWidth={false}
+            sx={{
+                mt: 6,
+                pt: 4,
+                px: 4,
+                height: 'calc(100vh - 120px)',
+                display: 'flex',
+                flexDirection: 'column'
+            }}
+        >
             <motion.div
-                initial={{ opacity: 0, y: 50 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
+                transition={{ duration: 0.5 }}
             >
                 <Typography
                     variant="h4"
                     align="center"
                     sx={{
-                        mb: 6,
+                        mb: 4,
                         background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
@@ -138,12 +174,13 @@ const FuelForm = () => {
                 >
                     {id ? 'Редактировать заправку' : 'Добавить заправку'}
                 </Typography>
+
                 {error && (
                     <Alert
                         severity="error"
                         sx={{
                             mb: 4,
-                            maxWidth: '800px',
+                            maxWidth: '900px',
                             mx: 'auto',
                             background: (theme) =>
                                 theme.palette.mode === 'dark'
@@ -159,14 +196,24 @@ const FuelForm = () => {
                         {error}
                     </Alert>
                 )}
-                <Box
-                    component="form"
-                    onSubmit={handleSubmit}
+            </motion.div>
+
+            <Box
+                component="form"
+                onSubmit={handleSubmit}
+                sx={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}
+            >
+                <Paper
                     sx={{
                         maxWidth: '1200px',
+                        width: '100%',
                         mx: 'auto',
-                        p: 4,
-                        borderRadius: '12px',
+                        p: 5,
+                        borderRadius: '16px',
                         border: '2px solid transparent',
                         borderImage: 'linear-gradient(45deg, #ff8c38, #76ff7a) 1',
                         background: (theme) =>
@@ -174,42 +221,58 @@ const FuelForm = () => {
                                 ? 'rgba(44, 27, 71, 0.9)'
                                 : 'rgba(255, 255, 255, 0.9)',
                         backdropFilter: 'blur(10px)',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
                     }}
                 >
-                    <Grid container spacing={4}>
-                        <Grid item xs={12} sm={6}>
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        mb: 4
+                    }}>
+                        <LocalGasStation sx={{ fontSize: 32, color: '#ff8c38', mr: 2 }} />
+                        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                            Данные о заправке
+                        </Typography>
+                    </Box>
+
+                    <Divider sx={{ mb: 4 }} />
+
+                    <Grid container spacing={5} sx={{ flex: 1 }}>
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5 }}
                             >
-                                <Select
-                                    fullWidth
-                                    name="carId"
-                                    value={formData.carId || ''}
-                                    onChange={handleChange}
-                                    displayEmpty
-                                    required
-                                    sx={{
-                                        height: '56px',
-                                        '& .MuiSelect-select': {
-                                            padding: '16.5px 14px',
-                                        },
-                                    }}
-                                >
-                                    <MenuItem value="" disabled>
-                                        Выберите автомобиль
-                                    </MenuItem>
-                                    {cars.map((car) => (
-                                        <MenuItem key={car.id} value={car.id}>
-                                            {car.brand} {car.model}
+                                <FormControl fullWidth>
+                                    <InputLabel>Автомобиль</InputLabel>
+                                    <Select
+                                        name="carId"
+                                        value={formData.carId || ''}
+                                        onChange={handleChange}
+                                        label="Автомобиль"
+                                        required
+                                        sx={{
+                                            height: '56px',
+                                        }}
+                                    >
+                                        <MenuItem value="" disabled>
+                                            Выберите автомобиль
                                         </MenuItem>
-                                    ))}
-                                </Select>
+                                        {cars.map((car) => (
+                                            <MenuItem key={car.id} value={car.id}>
+                                                {car.brand} {car.model} ({car.licensePlate})
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -224,11 +287,16 @@ const FuelForm = () => {
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -236,48 +304,51 @@ const FuelForm = () => {
                             >
                                 <TextField
                                     fullWidth
-                                    label="Заправка"
+                                    label="Название заправки"
                                     name="gasStation"
                                     value={formData.gasStation}
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    placeholder="например, Лукойл"
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5, delay: 0.1 }}
                             >
-                                <Select
-                                    fullWidth
-                                    name="fuelType"
-                                    value={formData.fuelType}
-                                    onChange={handleChange}
-                                    displayEmpty
-                                    required
-                                    sx={{
-                                        height: '56px',
-                                        '& .MuiSelect-select': {
-                                            padding: '16.5px 14px',
-                                        },
-                                    }}
-                                >
-                                    <MenuItem value="" disabled>
-                                        Выберите тип топлива
-                                    </MenuItem>
-                                    <MenuItem value="GASOLINE">Бензин</MenuItem>
-                                    <MenuItem value="DIESEL">ДТ</MenuItem>
-                                    <MenuItem value="PROPANE">Пропан</MenuItem>
-                                    <MenuItem value="METHANE">Метан</MenuItem>
-                                    <MenuItem value="ELECTRICITY">Электричество</MenuItem>
-                                </Select>
+                                <FormControl fullWidth>
+                                    <InputLabel>Тип топлива</InputLabel>
+                                    <Select
+                                        name="fuelType"
+                                        value={formData.fuelType || 'GASOLINE'}
+                                        onChange={handleChange}
+                                        label="Тип топлива"
+                                        required
+                                        sx={{
+                                            height: '56px',
+                                        }}
+                                    >
+                                        <MenuItem value="GASOLINE">Бензин</MenuItem>
+                                        <MenuItem value="DIESEL">ДТ</MenuItem>
+                                        <MenuItem value="PROPANE">Пропан</MenuItem>
+                                        <MenuItem value="METHANE">Метан</MenuItem>
+                                        <MenuItem value="ELECTRICITY">Электричество</MenuItem>
+                                    </Select>
+                                </FormControl>
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -288,16 +359,21 @@ const FuelForm = () => {
                                     label="Объём (л)"
                                     name="volume"
                                     type="number"
-                                    step="0.01"
+                                    inputProps={{ step: "0.01" }}
                                     value={formData.volume}
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -305,19 +381,24 @@ const FuelForm = () => {
                             >
                                 <TextField
                                     fullWidth
-                                    label="Цена за ед. (руб)"
+                                    label="Цена за единицу (руб)"
                                     name="pricePerUnit"
                                     type="number"
-                                    step="0.01"
+                                    inputProps={{ step: "0.01" }}
                                     value={formData.pricePerUnit}
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -325,18 +406,26 @@ const FuelForm = () => {
                             >
                                 <TextField
                                     fullWidth
-                                    label="Сумма (руб)"
+                                    label="Общая стоимость (руб)"
                                     name="totalCost"
                                     type="number"
-                                    step="0.01"
+                                    inputProps={{ step: "0.01", readOnly: true }}
                                     value={formData.totalCost}
-                                    InputProps={{ readOnly: true }}
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                            backgroundColor: (theme) =>
+                                                theme.palette.mode === 'dark'
+                                                    ? 'rgba(255, 255, 255, 0.05)'
+                                                    : 'rgba(0, 0, 0, 0.05)',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -350,56 +439,65 @@ const FuelForm = () => {
                                     value={formData.dateTime}
                                     onChange={handleChange}
                                     required
-                                    variant="outlined"
                                     InputLabelProps={{ shrink: true }}
-                                    sx={{ height: '56px' }}
+                                    variant="outlined"
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12}>
-                            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 4 }}>
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                    <Button
-                                        variant="contained"
-                                        type="submit"
-                                        sx={{
-                                            px: 4,
-                                            py: 1.5,
-                                            borderRadius: '8px',
-                                            background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
-                                            color: '#1a1a1a',
-                                            '&:hover': {
-                                                background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
-                                            },
-                                        }}
-                                    >
-                                        Сохранить
-                                    </Button>
-                                </motion.div>
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => navigate('/fuel')}
-                                        sx={{
-                                            px: 4,
-                                            py: 1.5,
-                                            borderRadius: '8px',
-                                            borderColor: '#ff8c38',
-                                            color: '#ff8c38',
-                                            '&:hover': {
-                                                borderColor: '#76ff7a',
-                                                color: '#76ff7a',
-                                            },
-                                        }}
-                                    >
-                                        Отмена
-                                    </Button>
-                                </motion.div>
-                            </Box>
-                        </Grid>
                     </Grid>
+                </Paper>
+
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, gap: 3 }}>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                            variant="contained"
+                            type="submit"
+                            sx={{
+                                px: 5,
+                                py: 1.5,
+                                borderRadius: '12px',
+                                background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                                color: '#1a1a1a',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                '&:hover': {
+                                    background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
+                                },
+                            }}
+                        >
+                            {id ? 'Обновить' : 'Сохранить'}
+                        </Button>
+                    </motion.div>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                            variant="outlined"
+                            onClick={() => navigate('/fuel')}
+                            sx={{
+                                px: 5,
+                                py: 1.5,
+                                borderRadius: '12px',
+                                borderColor: '#ff8c38',
+                                borderWidth: '2px',
+                                color: '#ff8c38',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                '&:hover': {
+                                    borderWidth: '2px',
+                                    borderColor: '#76ff7a',
+                                    color: '#76ff7a',
+                                },
+                            }}
+                        >
+                            Отмена
+                        </Button>
+                    </motion.div>
                 </Box>
-            </motion.div>
+            </Box>
         </Container>
     );
 };

@@ -12,7 +12,20 @@ import {
     Paper,
     Button,
     Alert,
+    Box,
+    IconButton,
+    Tooltip,
+    Chip,
+    Avatar,
 } from '@mui/material';
+import {
+    Edit,
+    Delete,
+    Add,
+    Person,
+    DirectionsCar,
+    Phone,
+} from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
@@ -51,41 +64,78 @@ const DriverList = () => {
         }
     };
 
+    const getRandomColor = (id) => {
+        const colors = [
+            '#f44336', '#e91e63', '#9c27b0', '#673ab7',
+            '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4',
+            '#009688', '#4caf50', '#8bc34a', '#cddc39',
+            '#ffc107', '#ff9800', '#ff5722'
+        ];
+
+        // Используем ID водителя для получения стабильного цвета для одного и того же водителя
+        return colors[id % colors.length];
+    };
+
+    const getInitials = (firstName, lastName) => {
+        const firstInitial = firstName && firstName.length > 0 ? firstName.charAt(0).toUpperCase() : '';
+        const lastInitial = lastName && lastName.length > 0 ? lastName.charAt(0).toUpperCase() : '';
+        return `${firstInitial}${lastInitial}`;
+    };
+
     const sortedDrivers = [...drivers].sort((a, b) => a.id - b.id);
 
     return (
-        <Container maxWidth={false} sx={{ maxWidth: '1600px', mt: 4, pt: 4 }}>
+        <Container maxWidth={false} sx={{ maxWidth: '1800px', mt: 4, pt: 4, px: 3 }}>
             <motion.div
-                initial={{ opacity: 0, y: 50 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
+                transition={{ duration: 0.5 }}
             >
-                <Typography
-                    variant="h4"
-                    align="center"
-                    sx={{
-                        mb: 4,
-                        background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                    }}
-                >
-                    Список водителей
-                </Typography>
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                        variant="contained"
-                        onClick={() => navigate('/drivers/add')}
-                        sx={{ mb: 2 }}
+                <Box sx={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    mb: 4
+                }}>
+                    <Typography
+                        variant="h4"
+                        sx={{
+                            background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            fontWeight: 'bold'
+                        }}
                     >
-                        Добавить водителя
-                    </Button>
-                </motion.div>
+                        Список водителей
+                    </Typography>
+
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                            variant="contained"
+                            onClick={() => navigate('/drivers/add')}
+                            startIcon={<Add />}
+                            sx={{
+                                background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                                color: '#1a1a1a',
+                                borderRadius: '12px',
+                                fontWeight: 'bold',
+                                px: 3,
+                                py: 1.5,
+                                '&:hover': {
+                                    background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
+                                }
+                            }}
+                        >
+                            Добавить водителя
+                        </Button>
+                    </motion.div>
+                </Box>
+
                 {error && (
                     <Alert
                         severity="error"
                         sx={{
-                            mb: 2,
+                            mb: 3,
                             background: (theme) =>
                                 theme.palette.mode === 'dark'
                                     ? 'rgba(211, 47, 47, 0.1)'
@@ -100,34 +150,51 @@ const DriverList = () => {
                         {error}
                     </Alert>
                 )}
+
                 <TableContainer
                     component={Paper}
                     sx={{
-                        minWidth: '1300px',
+                        borderRadius: '16px',
                         border: '2px solid transparent',
                         borderImage: 'linear-gradient(45deg, #ff8c38, #76ff7a) 1',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
                         background: (theme) =>
                             theme.palette.mode === 'dark'
-                                ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.9), rgba(50, 50, 50, 0.9))'
-                                : 'linear-gradient(135deg, rgba(200, 200, 200, 0.9), rgba(220, 220, 220, 0.9))',
+                                ? 'rgba(44, 27, 71, 0.9)'
+                                : 'rgba(255, 255, 255, 0.9)',
+                        backdropFilter: 'blur(10px)',
+                        overflow: 'hidden',
+                        '& .MuiTableRow-head': {
+                            background: (theme) =>
+                                theme.palette.mode === 'dark'
+                                    ? 'linear-gradient(90deg, rgba(40, 20, 60, 0.9), rgba(60, 30, 90, 0.9))'
+                                    : 'linear-gradient(90deg, rgba(240, 240, 240, 0.9), rgba(250, 250, 250, 0.9))',
+                        },
+                        '& .MuiTableCell-head': {
+                            fontWeight: 'bold',
+                            color: '#ff8c38',
+                            borderBottom: (theme) =>
+                                theme.palette.mode === 'dark'
+                                    ? '2px solid rgba(255, 140, 56, 0.3)'
+                                    : '2px solid rgba(255, 140, 56, 0.5)',
+                        }
                     }}
                 >
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={{ minWidth: 80 }}>ID</TableCell>
-                                <TableCell sx={{ minWidth: 150 }}>Имя</TableCell>
-                                <TableCell sx={{ minWidth: 150 }}>Фамилия</TableCell>
-                                <TableCell sx={{ minWidth: 150 }}>Телефон</TableCell>
-                                <TableCell sx={{ minWidth: 200 }}>Действия</TableCell>
+                                <TableCell align="center" sx={{ width: 70 }}>ID</TableCell>
+                                <TableCell sx={{ minWidth: 300 }}>Водитель</TableCell>
+                                <TableCell sx={{ minWidth: 180 }}>Телефон</TableCell>
+                                <TableCell sx={{ minWidth: 180 }}>Статус</TableCell>
+                                <TableCell align="center" sx={{ minWidth: 200 }}>Действия</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {sortedDrivers.map((driver) => (
-                                <motion.tr
+                                <TableRow
                                     key={driver.id}
+                                    component={motion.tr}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{ duration: 0.5 }}
@@ -136,38 +203,107 @@ const DriverList = () => {
                                             background: (theme) =>
                                                 theme.palette.mode === 'dark'
                                                     ? 'rgba(255, 255, 255, 0.05)'
-                                                    : 'rgba(0, 0, 0, 0.05)',
+                                                    : 'rgba(0, 0, 0, 0.03)',
                                         },
+                                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
                                     }}
                                 >
-                                    <TableCell>{driver.id}</TableCell>
-                                    <TableCell>{driver.firstName}</TableCell>
-                                    <TableCell>{driver.lastName}</TableCell>
-                                    <TableCell>{driver.phoneNumber}</TableCell>
+                                    <TableCell align="center">{driver.id}</TableCell>
                                     <TableCell>
-                                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                            <Button
-                                                variant="outlined"
-                                                color="primary"
-                                                onClick={() => navigate(`/drivers/edit/${driver.id}`)}
-                                                sx={{ mr: 1, mb: 1 }}
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                            <Avatar
+                                                sx={{
+                                                    bgcolor: getRandomColor(driver.id),
+                                                    mr: 2,
+                                                    width: 40,
+                                                    height: 40,
+                                                    fontSize: '1rem'
+                                                }}
                                             >
-                                                Редактировать
-                                            </Button>
-                                        </motion.div>
-                                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                            <Button
-                                                variant="outlined"
-                                                color="error"
-                                                onClick={() => handleDelete(driver.id)}
-                                                sx={{ mb: 1 }}
-                                            >
-                                                Удалить
-                                            </Button>
-                                        </motion.div>
+                                                {getInitials(driver.firstName, driver.lastName)}
+                                            </Avatar>
+                                            <Box>
+                                                <Typography sx={{ fontWeight: 'bold' }}>
+                                                    {driver.firstName} {driver.lastName}
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                    {driver.middleName || ''}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
                                     </TableCell>
-                                </motion.tr>
+                                    <TableCell>
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                            <Phone sx={{ mr: 1, color: '#76ff7a', fontSize: '1.2rem' }} />
+                                            <Typography>{driver.phoneNumber}</Typography>
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell>
+                                        {driver.hasCar ? (
+                                            <Chip
+                                                icon={<DirectionsCar style={{ fontSize: '1.2rem' }} />}
+                                                label="Назначен на автомобиль"
+                                                size="small"
+                                                sx={{
+                                                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                                                    color: '#4caf50',
+                                                    fontWeight: 'bold',
+                                                    border: '1px solid #4caf50',
+                                                    px: 1
+                                                }}
+                                            />
+                                        ) : (
+                                            <Chip
+                                                label="Не назначен"
+                                                size="small"
+                                                sx={{
+                                                    backgroundColor: 'rgba(158, 158, 158, 0.1)',
+                                                    color: '#9e9e9e',
+                                                    fontWeight: 'bold',
+                                                    border: '1px solid #9e9e9e',
+                                                    px: 1
+                                                }}
+                                            />
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                                            <Tooltip title="Редактировать">
+                                                <IconButton
+                                                    onClick={() => navigate(`/drivers/edit/${driver.id}`)}
+                                                    sx={{
+                                                        color: '#ff8c38',
+                                                        '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
+                                                    }}
+                                                >
+                                                    <Edit />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Удалить">
+                                                <IconButton
+                                                    onClick={() => handleDelete(driver.id)}
+                                                    sx={{
+                                                        color: '#f44336',
+                                                        '&:hover': { backgroundColor: 'rgba(244, 67, 54, 0.1)' }
+                                                    }}
+                                                >
+                                                    <Delete />
+                                                </IconButton>
+                                            </Tooltip>
+                                        </Box>
+                                    </TableCell>
+                                </TableRow>
                             ))}
+
+                            {sortedDrivers.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                                        <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                                            Список водителей пуст
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </TableContainer>

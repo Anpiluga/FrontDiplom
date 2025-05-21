@@ -8,6 +8,7 @@ import {
     Box,
     Grid,
     Alert,
+    Paper,
 } from '@mui/material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -18,6 +19,7 @@ const DriverForm = () => {
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
+        middleName: '',
         phoneNumber: '',
     });
     const [error, setError] = useState('');
@@ -30,9 +32,10 @@ const DriverForm = () => {
                         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
                     });
                     setFormData({
-                        firstName: response.data.firstName,
-                        lastName: response.data.lastName,
-                        phoneNumber: response.data.phoneNumber,
+                        firstName: response.data.firstName || '',
+                        lastName: response.data.lastName || '',
+                        middleName: response.data.middleName || '',
+                        phoneNumber: response.data.phoneNumber || '',
                     });
                 } catch (err) {
                     console.error('Error fetching driver', err);
@@ -58,6 +61,7 @@ const DriverForm = () => {
             const data = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
+                middleName: formData.middleName,
                 phoneNumber: formData.phoneNumber,
             };
 
@@ -78,17 +82,27 @@ const DriverForm = () => {
     };
 
     return (
-        <Container maxWidth={false} sx={{ maxWidth: '1600px', mt: 4, pt: 4, px: { xs: 2, sm: 4 } }}>
+        <Container
+            maxWidth={false}
+            sx={{
+                mt: 6,
+                pt: 4,
+                px: 4,
+                height: 'calc(100vh - 120px)',
+                display: 'flex',
+                flexDirection: 'column'
+            }}
+        >
             <motion.div
-                initial={{ opacity: 0, y: 50 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
+                transition={{ duration: 0.5 }}
             >
                 <Typography
                     variant="h4"
                     align="center"
                     sx={{
-                        mb: 6,
+                        mb: 4,
                         background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
@@ -96,6 +110,7 @@ const DriverForm = () => {
                 >
                     {id ? 'Редактировать водителя' : 'Добавить водителя'}
                 </Typography>
+
                 {error && (
                     <Alert
                         severity="error"
@@ -117,14 +132,24 @@ const DriverForm = () => {
                         {error}
                     </Alert>
                 )}
-                <Box
-                    component="form"
-                    onSubmit={handleSubmit}
+            </motion.div>
+
+            <Box
+                component="form"
+                onSubmit={handleSubmit}
+                sx={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}
+            >
+                <Paper
                     sx={{
                         maxWidth: '1200px',
+                        width: '100%',
                         mx: 'auto',
-                        p: 4,
-                        borderRadius: '12px',
+                        p: 5,
+                        borderRadius: '16px',
                         border: '2px solid transparent',
                         borderImage: 'linear-gradient(45deg, #ff8c38, #76ff7a) 1',
                         background: (theme) =>
@@ -132,11 +157,14 @@ const DriverForm = () => {
                                 ? 'rgba(44, 27, 71, 0.9)'
                                 : 'rgba(255, 255, 255, 0.9)',
                         backdropFilter: 'blur(10px)',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
                     }}
                 >
-                    <Grid container spacing={4}>
-                        <Grid item xs={12} sm={6}>
+                    <Grid container spacing={5} sx={{ flex: 1 }}>
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -150,11 +178,15 @@ const DriverForm = () => {
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -168,13 +200,38 @@ const DriverForm = () => {
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12} sm={6}>
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.1 }}
+                            >
+                                <TextField
+                                    fullWidth
+                                    label="Отчество"
+                                    name="middleName"
+                                    value={formData.middleName}
+                                    onChange={handleChange}
+                                    variant="outlined"
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
+                                />
+                            </motion.div>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5, delay: 0.1 }}
                             >
@@ -186,54 +243,64 @@ const DriverForm = () => {
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
-                                    sx={{ height: '56px' }}
+                                    placeholder="+79991234567"
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
                                 />
                             </motion.div>
                         </Grid>
-                        <Grid item xs={12}>
-                            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 4 }}>
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                    <Button
-                                        variant="contained"
-                                        type="submit"
-                                        sx={{
-                                            px: 4,
-                                            py: 1.5,
-                                            borderRadius: '8px',
-                                            background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
-                                            color: '#1a1a1a',
-                                            '&:hover': {
-                                                background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
-                                            },
-                                        }}
-                                    >
-                                        Сохранить
-                                    </Button>
-                                </motion.div>
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => navigate('/drivers')}
-                                        sx={{
-                                            px: 4,
-                                            py: 1.5,
-                                            borderRadius: '8px',
-                                            borderColor: '#ff8c38',
-                                            color: '#ff8c38',
-                                            '&:hover': {
-                                                borderColor: '#76ff7a',
-                                                color: '#76ff7a',
-                                            },
-                                        }}
-                                    >
-                                        Отмена
-                                    </Button>
-                                </motion.div>
-                            </Box>
-                        </Grid>
                     </Grid>
+                </Paper>
+
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, gap: 3 }}>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                            variant="contained"
+                            type="submit"
+                            sx={{
+                                px: 5,
+                                py: 1.5,
+                                borderRadius: '12px',
+                                background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                                color: '#1a1a1a',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                '&:hover': {
+                                    background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
+                                },
+                            }}
+                        >
+                            {id ? 'Обновить' : 'Сохранить'}
+                        </Button>
+                    </motion.div>
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                            variant="outlined"
+                            onClick={() => navigate('/drivers')}
+                            sx={{
+                                px: 5,
+                                py: 1.5,
+                                borderRadius: '12px',
+                                borderColor: '#ff8c38',
+                                borderWidth: '2px',
+                                color: '#ff8c38',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                '&:hover': {
+                                    borderWidth: '2px',
+                                    borderColor: '#76ff7a',
+                                    color: '#76ff7a',
+                                },
+                            }}
+                        >
+                            Отмена
+                        </Button>
+                    </motion.div>
                 </Box>
-            </motion.div>
+            </Box>
         </Container>
     );
 };
