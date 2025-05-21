@@ -37,12 +37,11 @@ import {
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
-import * as authService from '../services/authService';
 
 const CarForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { updateToken } = useContext(AuthContext);
+    const { user } = useContext(AuthContext);
     const [activeTab, setActiveTab] = useState(0);
     const [drivers, setDrivers] = useState([]);
     const [error, setError] = useState('');
@@ -67,43 +66,47 @@ const CarForm = () => {
         description: '',
     });
 
+    // Функция для получения заголовков с токеном
+    const getAuthHeaders = () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            return null;
+        }
+        return {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+    };
+
     useEffect(() => {
         const fetchDrivers = async () => {
             setLoading(true);
             try {
-                const token = localStorage.getItem('token');
-                if (!token) {
+                const headers = getAuthHeaders();
+                if (!headers) {
                     setError('Ошибка авторизации: токен отсутствует');
                     navigate('/login');
                     return;
                 }
 
-                // Проверяем доступность сервера через тестовый запрос
-                try {
-                    await axios.get('http://localhost:8080/main', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                } catch (testErr) {
-                    console.log('Ошибка при тестовом запросе:', testErr);
-                }
+                console.log('Fetching drivers with headers:', headers);
 
                 const response = await axios({
                     method: 'get',
                     url: 'http://localhost:8080/admin/drivers',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    // Важно для отладки - увеличим таймаут и включим вывод деталей запроса
+                    headers: headers,
                     timeout: 10000,
                     validateStatus: (status) => {
-                        return status < 500; // Не считаем ошибкой ответы с кодом < 500
+                        return status < 500;
                     }
                 });
 
+                console.log('Drivers response status:', response.status);
+                console.log('Drivers response data:', response.data);
+
                 if (response.status === 403) {
-                    console.error('Ошибка доступа (403) при получении списка водителей');
+                    console.error('403 error when fetching drivers');
                     setError('У вас нет прав для просмотра списка водителей');
                 } else if (response.status === 200) {
                     if (Array.isArray(response.data)) {
@@ -117,12 +120,19 @@ const CarForm = () => {
                 }
             } catch (err) {
                 console.error('Error fetching drivers:', err);
-                // Показываем более подробную информацию об ошибке
                 if (err.response) {
-                    console.log('Response data:', err.response.data);
-                    console.log('Response status:', err.response.status);
-                    console.log('Response headers:', err.response.headers);
-                    setError(`Ошибка при загрузке водителей: ${err.response.status} ${err.response.statusText}`);
+                    console.log('Error response data:', err.response.data);
+                    console.log('Error response status:', err.response.status);
+                    console.log('Error response headers:', err.response.headers);
+
+                    if (err.response.status === 403) {
+                        setError('Ошибка доступа при загрузке водителей. Проверьте ваши права доступа.');
+                    } else if (err.response.status === 401) {
+                        setError('Ошибка аутентификации. Пожалуйста, войдите в систему заново.');
+                        setTimeout(() => navigate('/login'), 2000);
+                    } else {
+                        setError(`Ошибка при загрузке водителей: ${err.response.status} ${err.response.statusText}`);
+                    }
                 } else if (err.request) {
                     console.log('Request:', err.request);
                     setError('Сервер не отвечает. Пожалуйста, проверьте соединение.');
@@ -138,24 +148,26 @@ const CarForm = () => {
             if (id) {
                 setLoading(true);
                 try {
-                    const token = localStorage.getItem('token');
-                    if (!token) {
+                    const headers = getAuthHeaders();
+                    if (!headers) {
                         setError('Ошибка авторизации: токен отсутствует');
                         navigate('/login');
                         return;
                     }
 
-                    // Используем запрос напрямую с минимальными заголовками
+                    console.log('Fetching car with ID:', id);
+
                     const response = await fetch(`http://localhost:8080/admin/cars/${id}`, {
                         method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Accept': 'application/json',
-                        }
+                        headers: headers
                     });
+
+                    console.log('Car response status:', response.status);
 
                     if (response.ok) {
                         const carData = await response.json();
+                        console.log('Car data received:', carData);
+
                         setFormData({
                             brand: carData.brand || '',
                             model: carData.model || '',
@@ -174,14 +186,16 @@ const CarForm = () => {
                             description: carData.description || '',
                         });
                     } else if (response.status === 403) {
-                        console.error('Ошибка доступа (403) при получении данных автомобиля');
-                        // Если сервер возвращает JSON с ошибкой, попробуем его прочитать
+                        console.error('403 error when fetching car');
                         try {
                             const errorData = await response.json();
                             setError(`Ошибка доступа: ${errorData.message || 'У вас нет прав для этой операции'}`);
                         } catch (jsonErr) {
                             setError('Ошибка доступа: у вас нет прав для просмотра этого автомобиля');
                         }
+                    } else if (response.status === 401) {
+                        setError('Ошибка аутентификации. Пожалуйста, войдите в систему заново.');
+                        setTimeout(() => navigate('/login'), 2000);
                     } else {
                         setError(`Ошибка при получении данных автомобиля: ${response.status} ${response.statusText}`);
                     }
@@ -248,9 +262,10 @@ const CarForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
+            const headers = getAuthHeaders();
+            if (!headers) {
                 setError('Ошибка авторизации: токен отсутствует');
                 navigate('/login');
                 return;
@@ -274,33 +289,38 @@ const CarForm = () => {
                 description: formData.description,
             };
 
-            // Используем fetch для большего контроля над запросом
+            console.log('Sending request with data:', data);
+            console.log('Auth headers:', headers);
+
             const url = id
                 ? `http://localhost:8080/admin/cars/${id}`
                 : 'http://localhost:8080/admin/cars';
 
             const method = id ? 'PUT' : 'POST';
 
+            console.log(`Making ${method} request to ${url}`);
+
             const response = await fetch(url, {
                 method: method,
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify(data)
             });
 
+            console.log('Response status:', response.status);
+
             if (response.ok) {
+                console.log('Car saved successfully');
                 navigate('/cars');
             } else if (response.status === 403) {
-                // Если сервер возвращает JSON с ошибкой, попробуем его прочитать
                 try {
                     const errorData = await response.json();
                     setError(`Ошибка доступа: ${errorData.message || 'У вас нет прав для этой операции'}`);
                 } catch (jsonErr) {
                     setError('Ошибка доступа: у вас нет прав для сохранения автомобиля');
                 }
+            } else if (response.status === 401) {
+                setError('Ошибка аутентификации. Пожалуйста, войдите в систему заново.');
+                setTimeout(() => navigate('/login'), 2000);
             } else {
                 setError(`Ошибка при сохранении автомобиля: ${response.status} ${response.statusText}`);
             }
@@ -380,7 +400,7 @@ const CarForm = () => {
                     overflowY: 'hidden'
                 }}
             >
-                {/* Боковая панель с вкладками - изменено для лучшего выравнивания */}
+                {/* Боковая панель с вкладками */}
                 <Box
                     sx={{
                         width: 250,
@@ -474,7 +494,7 @@ const CarForm = () => {
                     </Paper>
                 </Box>
 
-                {/* Основная часть формы - растянуты поля ввода */}
+                {/* Основная часть формы */}
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
                     <Paper
                         elevation={4}
@@ -493,7 +513,7 @@ const CarForm = () => {
                             overflowY: 'auto'
                         }}
                     >
-                        {/* Вкладка "Информация" - увеличены отступы между полями */}
+                        {/* Вкладка "Информация" */}
                         {activeTab === 0 && (
                             <Grid container spacing={4}>
                                 <Grid item xs={12} md={6}>
@@ -854,7 +874,7 @@ const CarForm = () => {
                                                 value={formData.fuelType || 'GASOLINE'}
                                                 onChange={handleChange}
                                                 label="Тип топлива"
-                                                disabled  // Disabled because we're reusing the same fuelType
+                                                disabled
                                             >
                                                 <MenuItem value="GASOLINE">Бензин</MenuItem>
                                                 <MenuItem value="DIESEL">Дизель</MenuItem>
