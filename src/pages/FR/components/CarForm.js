@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -21,6 +21,7 @@ import {
     Radio,
     IconButton,
     Divider,
+    CircularProgress,
 } from '@mui/material';
 import {
     Delete,
@@ -30,17 +31,22 @@ import {
     LocalGasStation,
     DirectionsCar,
     Add,
-    CloudUpload
+    CloudUpload,
+    Person,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { AuthContext } from '../context/AuthContext';
+import * as authService from '../services/authService';
 
 const CarForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { updateToken } = useContext(AuthContext);
     const [activeTab, setActiveTab] = useState(0);
     const [drivers, setDrivers] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     const [selectedDocs, setSelectedDocs] = useState([]);
     const [formData, setFormData] = useState({
@@ -63,51 +69,134 @@ const CarForm = () => {
 
     useEffect(() => {
         const fetchDrivers = async () => {
+            setLoading(true);
             try {
-                const response = await axios.get('http://localhost:8080/admin/drivers', {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    setError('Ошибка авторизации: токен отсутствует');
+                    navigate('/login');
+                    return;
+                }
+
+                // Проверяем доступность сервера через тестовый запрос
+                try {
+                    await axios.get('http://localhost:8080/main', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                } catch (testErr) {
+                    console.log('Ошибка при тестовом запросе:', testErr);
+                }
+
+                const response = await axios({
+                    method: 'get',
+                    url: 'http://localhost:8080/admin/drivers',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    // Важно для отладки - увеличим таймаут и включим вывод деталей запроса
+                    timeout: 10000,
+                    validateStatus: (status) => {
+                        return status < 500; // Не считаем ошибкой ответы с кодом < 500
+                    }
                 });
-                setDrivers(response.data);
+
+                if (response.status === 403) {
+                    console.error('Ошибка доступа (403) при получении списка водителей');
+                    setError('У вас нет прав для просмотра списка водителей');
+                } else if (response.status === 200) {
+                    if (Array.isArray(response.data)) {
+                        setDrivers(response.data);
+                    } else {
+                        setError('Получен неверный формат данных для списка водителей');
+                        console.error('Unexpected response format for drivers:', response.data);
+                    }
+                } else {
+                    setError(`Ошибка при получении списка водителей: ${response.status}`);
+                }
             } catch (err) {
-                console.error('Error fetching drivers', err);
-                setError('Ошибка при загрузке водителей');
+                console.error('Error fetching drivers:', err);
+                // Показываем более подробную информацию об ошибке
+                if (err.response) {
+                    console.log('Response data:', err.response.data);
+                    console.log('Response status:', err.response.status);
+                    console.log('Response headers:', err.response.headers);
+                    setError(`Ошибка при загрузке водителей: ${err.response.status} ${err.response.statusText}`);
+                } else if (err.request) {
+                    console.log('Request:', err.request);
+                    setError('Сервер не отвечает. Пожалуйста, проверьте соединение.');
+                } else {
+                    setError(`Ошибка при инициализации запроса: ${err.message}`);
+                }
+            } finally {
+                setLoading(false);
             }
         };
 
         const fetchCar = async () => {
             if (id) {
+                setLoading(true);
                 try {
-                    const response = await axios.get(`http://localhost:8080/admin/cars/${id}`, {
-                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        setError('Ошибка авторизации: токен отсутствует');
+                        navigate('/login');
+                        return;
+                    }
+
+                    // Используем запрос напрямую с минимальными заголовками
+                    const response = await fetch(`http://localhost:8080/admin/cars/${id}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json',
+                        }
                     });
-                    const carData = response.data;
-                    setFormData({
-                        brand: carData.brand || '',
-                        model: carData.model || '',
-                        year: carData.year || '',
-                        licensePlate: carData.licensePlate || '',
-                        vin: carData.vin || '',
-                        odometr: carData.odometr || '',
-                        fuelConsumption: carData.fuelConsumption || '',
-                        status: carData.status || 'IN_USE',
-                        driverId: carData.driverId || '',
-                        counterType: carData.counterType || 'ODOMETER',
-                        secondaryCounterEnabled: carData.secondaryCounterEnabled || false,
-                        secondaryCounterType: carData.secondaryCounterType || 'MOTHOURS',
-                        fuelType: carData.fuelType || 'GASOLINE',
-                        fuelTankVolume: carData.fuelTankVolume || '',
-                        description: carData.description || '',
-                    });
+
+                    if (response.ok) {
+                        const carData = await response.json();
+                        setFormData({
+                            brand: carData.brand || '',
+                            model: carData.model || '',
+                            year: carData.year || '',
+                            licensePlate: carData.licensePlate || '',
+                            vin: carData.vin || '',
+                            odometr: carData.odometr || '',
+                            fuelConsumption: carData.fuelConsumption || '',
+                            status: carData.status || 'IN_USE',
+                            driverId: carData.driverId || '',
+                            counterType: carData.counterType || 'ODOMETER',
+                            secondaryCounterEnabled: carData.secondaryCounterEnabled || false,
+                            secondaryCounterType: carData.secondaryCounterType || 'MOTHOURS',
+                            fuelType: carData.fuelType || 'GASOLINE',
+                            fuelTankVolume: carData.fuelTankVolume || '',
+                            description: carData.description || '',
+                        });
+                    } else if (response.status === 403) {
+                        console.error('Ошибка доступа (403) при получении данных автомобиля');
+                        // Если сервер возвращает JSON с ошибкой, попробуем его прочитать
+                        try {
+                            const errorData = await response.json();
+                            setError(`Ошибка доступа: ${errorData.message || 'У вас нет прав для этой операции'}`);
+                        } catch (jsonErr) {
+                            setError('Ошибка доступа: у вас нет прав для просмотра этого автомобиля');
+                        }
+                    } else {
+                        setError(`Ошибка при получении данных автомобиля: ${response.status} ${response.statusText}`);
+                    }
                 } catch (err) {
-                    console.error('Error fetching car', err);
-                    setError('Ошибка при загрузке автомобиля');
+                    console.error('Error fetching car:', err);
+                    setError(`Ошибка при загрузке автомобиля: ${err.message}`);
+                } finally {
+                    setLoading(false);
                 }
             }
         };
 
         fetchDrivers();
         fetchCar();
-    }, [id]);
+    }, [id, navigate]);
 
     const handleTabChange = (event, newValue) => {
         setActiveTab(newValue);
@@ -158,7 +247,15 @@ const CarForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
         try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации: токен отсутствует');
+                navigate('/login');
+                return;
+            }
+
             const data = {
                 brand: formData.brand,
                 model: formData.model,
@@ -177,19 +274,41 @@ const CarForm = () => {
                 description: formData.description,
             };
 
-            if (id) {
-                await axios.put(`http://localhost:8080/admin/cars/${id}`, data, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-                });
+            // Используем fetch для большего контроля над запросом
+            const url = id
+                ? `http://localhost:8080/admin/cars/${id}`
+                : 'http://localhost:8080/admin/cars';
+
+            const method = id ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                navigate('/cars');
+            } else if (response.status === 403) {
+                // Если сервер возвращает JSON с ошибкой, попробуем его прочитать
+                try {
+                    const errorData = await response.json();
+                    setError(`Ошибка доступа: ${errorData.message || 'У вас нет прав для этой операции'}`);
+                } catch (jsonErr) {
+                    setError('Ошибка доступа: у вас нет прав для сохранения автомобиля');
+                }
             } else {
-                await axios.post('http://localhost:8080/admin/cars', data, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-                });
+                setError(`Ошибка при сохранении автомобиля: ${response.status} ${response.statusText}`);
             }
-            navigate('/cars');
         } catch (err) {
-            console.error('Error saving car', err);
-            setError('Ошибка при сохранении автомобиля');
+            console.error('Error saving car:', err);
+            setError(`Ошибка при сохранении автомобиля: ${err.message}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -241,6 +360,12 @@ const CarForm = () => {
                     >
                         {error}
                     </Alert>
+                )}
+
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                        <CircularProgress color="primary" />
+                    </Box>
                 )}
             </motion.div>
 
@@ -461,20 +586,59 @@ const CarForm = () => {
                                     </FormControl>
                                 </Grid>
                                 <Grid item xs={12} md={6}>
-                                    <FormControl fullWidth sx={{ height: '56px' }}>
+                                    <FormControl
+                                        fullWidth
+                                        sx={{
+                                            height: '56px',
+                                            '& .MuiOutlinedInput-root': {
+                                                height: '56px',
+                                                background: (theme) =>
+                                                    theme.palette.mode === 'dark'
+                                                        ? 'rgba(255, 255, 255, 0.05)'
+                                                        : 'rgba(0, 0, 0, 0.05)',
+                                            },
+                                            '& .MuiSelect-select': {
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 1
+                                            }
+                                        }}
+                                    >
                                         <InputLabel>Водитель</InputLabel>
                                         <Select
                                             name="driverId"
                                             value={formData.driverId || ''}
                                             onChange={handleChange}
                                             label="Водитель"
+                                            MenuProps={{
+                                                PaperProps: {
+                                                    sx: {
+                                                        maxHeight: 300,
+                                                        background: (theme) =>
+                                                            theme.palette.mode === 'dark'
+                                                                ? 'rgba(44, 27, 71, 0.95)'
+                                                                : 'rgba(255, 255, 255, 0.95)',
+                                                        backdropFilter: 'blur(10px)',
+                                                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+                                                    }
+                                                }
+                                            }}
+                                            startAdornment={
+                                                formData.driverId ? <Person sx={{ color: '#4caf50', mr: 1 }} /> : null
+                                            }
                                         >
                                             <MenuItem value="">
                                                 <em>Без водителя</em>
                                             </MenuItem>
                                             {drivers.map((driver) => (
-                                                <MenuItem key={driver.id} value={driver.id}>
-                                                    {driver.firstName} {driver.lastName} {driver.middleName}
+                                                <MenuItem key={driver.id} value={driver.id} sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 1,
+                                                    py: 1.5
+                                                }}>
+                                                    <Person sx={{ color: '#4caf50' }} />
+                                                    <Typography>{driver.firstName} {driver.lastName} {driver.middleName}</Typography>
                                                 </MenuItem>
                                             ))}
                                         </Select>
@@ -859,6 +1023,7 @@ const CarForm = () => {
                             <Button
                                 variant="contained"
                                 type="submit"
+                                disabled={loading}
                                 sx={{
                                     px: 5,
                                     py: 1.5,
@@ -872,7 +1037,7 @@ const CarForm = () => {
                                     },
                                 }}
                             >
-                                {id ? 'Обновить' : 'Сохранить'}
+                                {loading ? <CircularProgress size={24} color="inherit" /> : (id ? 'Обновить' : 'Сохранить')}
                             </Button>
                         </motion.div>
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

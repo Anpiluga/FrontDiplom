@@ -1,5 +1,5 @@
 import React, { useContext, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, AuthContext } from './pages/FR/context/AuthContext';
 import Login from './pages/FR/components/Login';
 import Register from './pages/FR/components/Register';
@@ -17,6 +17,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import Header from './pages/FR/components/Header';
 import Sidebar from './pages/FR/components/Sidebar';
 import getTheme from './pages/FR/theme/theme';
+import { jwtDecode } from 'jwt-decode';
 import './App.css';
 
 function ErrorFallback({ error, resetErrorBoundary }) {
@@ -31,12 +32,56 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 
 function AppContent() {
     const location = useLocation();
-    const { darkMode } = useContext(AuthContext);
+    const navigate = useNavigate();
+    const { darkMode, logout } = useContext(AuthContext);
+
     console.log('Current path:', location.pathname);
     console.log('darkMode:', darkMode);
     const showSidebar = ['/home', '/cars', '/drivers', '/fuel', '/cars/add', '/cars/edit', '/drivers/add', '/drivers/edit', '/fuel/add', '/fuel/edit'].some(path => location.pathname.startsWith(path));
     console.log('showSidebar:', showSidebar);
     const theme = getTheme(darkMode !== undefined ? darkMode : true);
+
+    // Проверка токена при загрузке компонента
+    useEffect(() => {
+        // Функция для проверки валидности токена
+        const checkToken = () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    const decoded = jwtDecode(token);
+                    const currentTime = Date.now() / 1000;
+
+                    if (decoded.exp && decoded.exp < currentTime) {
+                        console.log('Token expired, logging out automatically');
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('username');
+                        if (logout) {
+                            logout();
+                        }
+                        if (!location.pathname.includes('/login')) {
+                            navigate('/login');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Invalid token format:', error);
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('username');
+                    if (!location.pathname.includes('/login')) {
+                        navigate('/login');
+                    }
+                }
+            }
+        };
+
+        // Проверяем токен при загрузке компонента
+        checkToken();
+
+        // Периодическая проверка токена каждую минуту
+        const tokenInterval = setInterval(checkToken, 60000);
+
+        // Очистка интервала при размонтировании компонента
+        return () => clearInterval(tokenInterval);
+    }, [logout, navigate, location.pathname]);
 
     return (
         <ThemeProvider theme={theme}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -15,13 +15,15 @@ import {
     InputLabel,
     Divider,
 } from '@mui/material';
-import { LocalGasStation } from '@mui/icons-material';
+import { LocalGasStation, DirectionsCar } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { AuthContext } from '../context/AuthContext';
 
 const FuelForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { updateToken } = useContext(AuthContext);
     const [formData, setFormData] = useState({
         carId: '',
         odometerReading: '',
@@ -38,41 +40,78 @@ const FuelForm = () => {
     useEffect(() => {
         const fetchCars = async () => {
             try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    setError('Ошибка авторизации: токен отсутствует');
+                    navigate('/login');
+                    return;
+                }
+
                 const response = await axios.get('http://localhost:8080/admin/cars', {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
                 });
                 setCars(response.data);
             } catch (err) {
                 console.error('Error fetching cars', err);
-                setError('Ошибка при загрузке автомобилей');
+                if (err.response?.status === 403) {
+                    setError('Ошибка доступа при загрузке автомобилей. Проверьте ваши права доступа.');
+                    setTimeout(() => navigate('/login'), 2000);
+                } else {
+                    setError('Ошибка при загрузке автомобилей. Пожалуйста, попробуйте снова позже.');
+                }
             }
         };
 
         const fetchFuelEntry = async () => {
             if (id) {
                 try {
+                    // Получаем актуальный токен из localStorage
+                    const token = localStorage.getItem('token');
+
+                    if (!token) {
+                        setError('Ошибка авторизации: токен отсутствует');
+                        navigate('/login');
+                        return;
+                    }
+
                     const response = await axios.get(`http://localhost:8080/admin/fuel-entries/${id}`, {
-                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
                     });
 
-                    // Форматируем дату и время для поля ввода datetime-local
-                    const dateTime = response.data.dateTime ?
-                        new Date(response.data.dateTime).toISOString().slice(0, 16) :
-                        '';
+                    if (response.data) {
+                        // Форматируем дату и время для поля ввода datetime-local
+                        const dateTime = response.data.dateTime ?
+                            new Date(response.data.dateTime).toISOString().slice(0, 16) :
+                            '';
 
-                    setFormData({
-                        carId: response.data.carId,
-                        odometerReading: response.data.odometerReading,
-                        gasStation: response.data.gasStation,
-                        fuelType: response.data.fuelType,
-                        volume: response.data.volume,
-                        pricePerUnit: response.data.pricePerUnit,
-                        totalCost: response.data.totalCost,
-                        dateTime: dateTime,
-                    });
+                        setFormData({
+                            carId: response.data.carId,
+                            odometerReading: response.data.odometerReading,
+                            gasStation: response.data.gasStation,
+                            fuelType: response.data.fuelType,
+                            volume: response.data.volume,
+                            pricePerUnit: response.data.pricePerUnit,
+                            totalCost: response.data.totalCost,
+                            dateTime: dateTime,
+                        });
+                    } else {
+                        setError('Получены некорректные данные от сервера');
+                    }
                 } catch (err) {
                     console.error('Error fetching fuel entry', err);
-                    setError('Ошибка при загрузке записи о заправке');
+                    if (err.response && err.response.status === 403) {
+                        setError('Ошибка доступа: у вас нет прав для просмотра этой заправки');
+                        // Возможно, токен устарел - перенаправляем на страницу входа
+                        setTimeout(() => navigate('/login'), 2000);
+                    } else {
+                        setError(`Ошибка при загрузке записи о заправке: ${err.message}`);
+                    }
                 }
             } else {
                 // Устанавливаем текущую дату и время для нового ввода
@@ -91,7 +130,7 @@ const FuelForm = () => {
 
         fetchCars();
         fetchFuelEntry();
-    }, [id]);
+    }, [id, navigate]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -118,6 +157,13 @@ const FuelForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации: токен отсутствует');
+                navigate('/login');
+                return;
+            }
+
             const data = {
                 carId: parseInt(formData.carId),
                 odometerReading: parseInt(formData.odometerReading),
@@ -131,17 +177,28 @@ const FuelForm = () => {
 
             if (id) {
                 await axios.put(`http://localhost:8080/admin/fuel-entries/${id}`, data, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
                 });
             } else {
                 await axios.post('http://localhost:8080/admin/fuel-entries', data, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
                 });
             }
             navigate('/fuel');
         } catch (err) {
             console.error('Error saving fuel entry', err);
-            setError('Ошибка при сохранении записи о заправке');
+            if (err.response && err.response.status === 403) {
+                setError('Ошибка доступа: у вас нет прав для сохранения заправки');
+                setTimeout(() => navigate('/login'), 2000);
+            } else {
+                setError('Ошибка при сохранении записи о заправке');
+            }
         }
     };
 
@@ -247,7 +304,23 @@ const FuelForm = () => {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5 }}
                             >
-                                <FormControl fullWidth>
+                                <FormControl
+                                    fullWidth
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            height: '56px',
+                                            background: (theme) =>
+                                                theme.palette.mode === 'dark'
+                                                    ? 'rgba(255, 255, 255, 0.05)'
+                                                    : 'rgba(0, 0, 0, 0.05)',
+                                        },
+                                        '& .MuiSelect-select': {
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1
+                                        }
+                                    }}
+                                >
                                     <InputLabel>Автомобиль</InputLabel>
                                     <Select
                                         name="carId"
@@ -255,16 +328,44 @@ const FuelForm = () => {
                                         onChange={handleChange}
                                         label="Автомобиль"
                                         required
-                                        sx={{
-                                            height: '56px',
+                                        MenuProps={{
+                                            PaperProps: {
+                                                sx: {
+                                                    maxHeight: 300,
+                                                    background: (theme) =>
+                                                        theme.palette.mode === 'dark'
+                                                            ? 'rgba(44, 27, 71, 0.95)'
+                                                            : 'rgba(255, 255, 255, 0.95)',
+                                                    backdropFilter: 'blur(10px)',
+                                                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+                                                }
+                                            }
                                         }}
+                                        startAdornment={
+                                            formData.carId ? <DirectionsCar sx={{ color: '#ff8c38', mr: 1 }} /> : null
+                                        }
                                     >
                                         <MenuItem value="" disabled>
                                             Выберите автомобиль
                                         </MenuItem>
                                         {cars.map((car) => (
-                                            <MenuItem key={car.id} value={car.id}>
-                                                {car.brand} {car.model} ({car.licensePlate})
+                                            <MenuItem
+                                                key={car.id}
+                                                value={car.id}
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 1,
+                                                    py: 1.5
+                                                }}
+                                            >
+                                                <DirectionsCar sx={{ color: '#ff8c38' }} />
+                                                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <Typography sx={{ fontWeight: 'bold' }}>{car.brand} {car.model}</Typography>
+                                                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                                        {car.licensePlate}
+                                                    </Typography>
+                                                </Box>
                                             </MenuItem>
                                         ))}
                                     </Select>

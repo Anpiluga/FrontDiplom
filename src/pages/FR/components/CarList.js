@@ -36,66 +36,149 @@ const CarList = () => {
     useEffect(() => {
         const fetchCars = async () => {
             try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                    navigate('/login');
+                    return;
+                }
+
                 const response = await axios.get('http://localhost:8080/admin/cars', {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
                 });
-                setCars(response.data);
+
+                if (response.data) {
+                    setCars(response.data);
+                } else {
+                    setError('Получены некорректные данные от сервера');
+                }
             } catch (err) {
                 console.error('Error fetching cars', err);
-                setError('Ошибка при загрузке автомобилей');
+                if (err.response) {
+                    if (err.response.status === 403) {
+                        setError('Ошибка доступа при загрузке автомобилей. Срок действия сессии мог истечь.');
+                        setTimeout(() => navigate('/login'), 2000);
+                    } else if (err.response.status === 404) {
+                        setError('API для получения автомобилей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
+                    } else {
+                        setError(`Ошибка при загрузке автомобилей: ${err.response.status} ${err.response.statusText}`);
+                    }
+                } else if (err.request) {
+                    setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
+                } else {
+                    setError(`Ошибка при загрузке автомобилей: ${err.message}`);
+                }
             }
         };
 
         fetchCars();
-    }, []);
+    }, [navigate]);
 
     const handleDelete = async (id) => {
         if (!window.confirm('Вы уверены, что хотите удалить этот автомобиль?')) return;
 
         try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
             await axios.delete(`http://localhost:8080/admin/cars/${id}`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
             });
             setCars(cars.filter((car) => car.id !== id));
         } catch (err) {
             console.error('Error deleting car', err);
-            setError('Ошибка при удалении автомобиля');
+            if (err.response && err.response.status === 403) {
+                setError('Ошибка доступа при удалении автомобиля. Срок действия сессии мог истечь.');
+                setTimeout(() => navigate('/login'), 2000);
+            } else {
+                setError('Ошибка при удалении автомобиля. Пожалуйста, попробуйте снова позже.');
+            }
         }
     };
 
     const handleAssignDriver = async (carId, driverId) => {
         try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
             await axios.post(`http://localhost:8080/admin/cars/${carId}/assign-driver`,
                 { driverId },
-                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
             );
 
             // Обновляем список автомобилей
             const response = await axios.get('http://localhost:8080/admin/cars', {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
             });
             setCars(response.data);
         } catch (err) {
             console.error('Error assigning driver', err);
-            setError('Ошибка при назначении водителя');
+            if (err.response && err.response.status === 403) {
+                setError('Ошибка доступа при назначении водителя. Срок действия сессии мог истечь.');
+                setTimeout(() => navigate('/login'), 2000);
+            } else {
+                setError('Ошибка при назначении водителя. Пожалуйста, попробуйте снова позже.');
+            }
         }
     };
 
     const handleUnassignDriver = async (carId) => {
         try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
             await axios.post(`http://localhost:8080/admin/cars/${carId}/unassign-driver`,
                 {},
-                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
             );
 
             // Обновляем список автомобилей
             const response = await axios.get('http://localhost:8080/admin/cars', {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
             });
             setCars(response.data);
         } catch (err) {
             console.error('Error unassigning driver', err);
-            setError('Ошибка при отвязке водителя');
+            if (err.response && err.response.status === 403) {
+                setError('Ошибка доступа при отвязке водителя. Срок действия сессии мог истечь.');
+                setTimeout(() => navigate('/login'), 2000);
+            } else {
+                setError('Ошибка при отвязке водителя. Пожалуйста, попробуйте снова позже.');
+            }
         }
     };
 

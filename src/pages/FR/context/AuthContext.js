@@ -53,8 +53,39 @@ export const AuthProvider = ({ children }) => {
         setDarkMode((prevMode) => !prevMode);
     };
 
+    // Новая функция для проверки и обновления токена
+    const updateToken = () => {
+        const token = localStorage.getItem('token');
+        const storedUsername = localStorage.getItem('username');
+
+        if (token && storedUsername) {
+            try {
+                const decoded = jwtDecode(token);
+                const currentTime = Date.now() / 1000;
+
+                if (decoded.exp && decoded.exp < currentTime) {
+                    console.log('Token expired, logging out');
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('username');
+                    setUser(null);
+                    return null;
+                } else {
+                    // Токен валидный
+                    return token;
+                }
+            } catch (error) {
+                console.error('Invalid token', error);
+                localStorage.removeItem('token');
+                localStorage.removeItem('username');
+                setUser(null);
+                return null;
+            }
+        }
+        return null;
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, logout, darkMode, toggleTheme }}>
+        <AuthContext.Provider value={{ user, login, logout, darkMode, toggleTheme, updateToken }}>
             {children}
         </AuthContext.Provider>
     );

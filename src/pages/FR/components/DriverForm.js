@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Container,
@@ -9,13 +9,16 @@ import {
     Grid,
     Alert,
     Paper,
+    CircularProgress,
 } from '@mui/material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { AuthContext } from '../context/AuthContext';
 
 const DriverForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { updateToken } = useContext(AuthContext);
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -23,29 +26,60 @@ const DriverForm = () => {
         phoneNumber: '',
     });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const fetchDriver = async () => {
             if (id) {
+                setLoading(true);
                 try {
-                    const response = await axios.get(`http://localhost:8080/admin/drivers/${id}`, {
-                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    // Используем запрос напрямую с минимальными заголовками
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        setError('Ошибка авторизации: токен отсутствует');
+                        navigate('/login');
+                        return;
+                    }
+
+                    const response = await fetch(`http://localhost:8080/admin/drivers/${id}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json',
+                        }
                     });
-                    setFormData({
-                        firstName: response.data.firstName || '',
-                        lastName: response.data.lastName || '',
-                        middleName: response.data.middleName || '',
-                        phoneNumber: response.data.phoneNumber || '',
-                    });
+
+                    if (response.ok) {
+                        const driverData = await response.json();
+                        setFormData({
+                            firstName: driverData.firstName || '',
+                            lastName: driverData.lastName || '',
+                            middleName: driverData.middleName || '',
+                            phoneNumber: driverData.phoneNumber || '',
+                        });
+                    } else if (response.status === 403) {
+                        console.error('Ошибка доступа (403) при получении данных водителя');
+                        // Если сервер возвращает JSON с ошибкой, попробуем его прочитать
+                        try {
+                            const errorData = await response.json();
+                            setError(`Ошибка доступа: ${errorData.message || 'У вас нет прав для этой операции'}`);
+                        } catch (jsonErr) {
+                            setError('Ошибка доступа: у вас нет прав для просмотра этого водителя');
+                        }
+                    } else {
+                        setError(`Ошибка при получении данных водителя: ${response.status} ${response.statusText}`);
+                    }
                 } catch (err) {
-                    console.error('Error fetching driver', err);
-                    setError('Ошибка при загрузке водителя');
+                    console.error('Error fetching driver:', err);
+                    setError(`Ошибка при загрузке водителя: ${err.message}`);
+                } finally {
+                    setLoading(false);
                 }
             }
         };
 
         fetchDriver();
-    }, [id]);
+    }, [id, navigate]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -57,7 +91,15 @@ const DriverForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
         try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации: токен отсутствует');
+                navigate('/login');
+                return;
+            }
+
             const data = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
@@ -65,19 +107,41 @@ const DriverForm = () => {
                 phoneNumber: formData.phoneNumber,
             };
 
-            if (id) {
-                await axios.put(`http://localhost:8080/admin/drivers/${id}`, data, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-                });
+            // Используем fetch для большего контроля над запросом
+            const url = id
+                ? `http://localhost:8080/admin/drivers/${id}`
+                : 'http://localhost:8080/admin/drivers';
+
+            const method = id ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                navigate('/drivers');
+            } else if (response.status === 403) {
+                // Если сервер возвращает JSON с ошибкой, попробуем его прочитать
+                try {
+                    const errorData = await response.json();
+                    setError(`Ошибка доступа: ${errorData.message || 'У вас нет прав для этой операции'}`);
+                } catch (jsonErr) {
+                    setError('Ошибка доступа: у вас нет прав для сохранения водителя');
+                }
             } else {
-                await axios.post('http://localhost:8080/admin/drivers', data, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-                });
+                setError(`Ошибка при сохранении водителя: ${response.status} ${response.statusText}`);
             }
-            navigate('/drivers');
         } catch (err) {
-            console.error('Error saving driver', err);
-            setError('Ошибка при сохранении водителя');
+            console.error('Error saving driver:', err);
+            setError(`Ошибка при сохранении водителя: ${err.message}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -131,6 +195,12 @@ const DriverForm = () => {
                     >
                         {error}
                     </Alert>
+                )}
+
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                        <CircularProgress color="primary" />
+                    </Box>
                 )}
             </motion.div>
 
@@ -260,6 +330,7 @@ const DriverForm = () => {
                         <Button
                             variant="contained"
                             type="submit"
+                            disabled={loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -273,7 +344,7 @@ const DriverForm = () => {
                                 },
                             }}
                         >
-                            {id ? 'Обновить' : 'Сохранить'}
+                            {loading ? <CircularProgress size={24} color="inherit" /> : (id ? 'Обновить' : 'Сохранить')}
                         </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

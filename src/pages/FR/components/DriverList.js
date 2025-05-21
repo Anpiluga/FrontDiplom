@@ -37,30 +37,73 @@ const DriverList = () => {
     useEffect(() => {
         const fetchDrivers = async () => {
             try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                    navigate('/login');
+                    return;
+                }
+
                 const response = await axios.get('http://localhost:8080/admin/drivers', {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
                 });
-                setDrivers(response.data);
+
+                if (response.data) {
+                    setDrivers(response.data);
+                } else {
+                    setError('Получены некорректные данные от сервера');
+                }
             } catch (err) {
                 console.error('Error fetching drivers', err);
-                setError('Ошибка при загрузке водителей');
+                if (err.response) {
+                    if (err.response.status === 403) {
+                        setError('Ошибка доступа при загрузке водителей. Срок действия сессии мог истечь.');
+                        setTimeout(() => navigate('/login'), 2000);
+                    } else if (err.response.status === 404) {
+                        setError('API для получения водителей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
+                    } else {
+                        setError(`Ошибка при загрузке водителей: ${err.response.status} ${err.response.statusText}`);
+                    }
+                } else if (err.request) {
+                    setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
+                } else {
+                    setError(`Ошибка при загрузке водителей: ${err.message}`);
+                }
             }
         };
 
         fetchDrivers();
-    }, []);
+    }, [navigate]);
 
     const handleDelete = async (id) => {
         if (!window.confirm('Вы уверены, что хотите удалить этого водителя?')) return;
 
         try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
             await axios.delete(`http://localhost:8080/admin/drivers/${id}`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
             });
             setDrivers(drivers.filter((driver) => driver.id !== id));
         } catch (err) {
             console.error('Error deleting driver', err);
-            setError('Ошибка при удалении водителя');
+            if (err.response && err.response.status === 403) {
+                setError('Ошибка доступа при удалении водителя. Срок действия сессии мог истечь.');
+                setTimeout(() => navigate('/login'), 2000);
+            } else {
+                setError('Ошибка при удалении водителя. Пожалуйста, попробуйте снова позже.');
+            }
         }
     };
 
