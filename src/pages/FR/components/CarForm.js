@@ -39,6 +39,10 @@ const CarForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState(0);
+    const [drivers, setDrivers] = useState([]);
+    const [error, setError] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [selectedDocs, setSelectedDocs] = useState([]);
     const [formData, setFormData] = useState({
         brand: '',
         model: '',
@@ -56,10 +60,6 @@ const CarForm = () => {
         fuelTankVolume: '',
         description: '',
     });
-    const [drivers, setDrivers] = useState([]);
-    const [error, setError] = useState('');
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [selectedDocs, setSelectedDocs] = useState([]);
 
     useEffect(() => {
         const fetchDrivers = async () => {
@@ -176,9 +176,6 @@ const CarForm = () => {
                 fuelTankVolume: formData.fuelTankVolume ? parseFloat(formData.fuelTankVolume) : null,
                 description: formData.description,
             };
-
-            // Файлы будем отправлять отдельно через multipart/form-data
-            // Но это требует дополнительной настройки на бэкенде
 
             if (id) {
                 await axios.put(`http://localhost:8080/admin/cars/${id}`, data, {
