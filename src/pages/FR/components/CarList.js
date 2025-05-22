@@ -16,6 +16,12 @@ import {
     IconButton,
     Tooltip,
     Chip,
+    TextField,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Grid,
 } from '@mui/material';
 import {
     Edit,
@@ -25,6 +31,8 @@ import {
     Person,
     PersonOff,
     Visibility,
+    Search,
+    FilterList,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -33,50 +41,88 @@ const CarList = () => {
     const navigate = useNavigate();
     const [cars, setCars] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    // Фильтры
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('');
+    const [yearFromFilter, setYearFromFilter] = useState('');
+    const [yearToFilter, setYearToFilter] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
 
     useEffect(() => {
-        const fetchCars = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
-                    navigate('/login');
-                    return;
-                }
-
-                const response = await axios.get('http://localhost:8080/admin/cars', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                });
-
-                if (response.data) {
-                    setCars(response.data);
-                } else {
-                    setError('Получены некорректные данные от сервера');
-                }
-            } catch (err) {
-                console.error('Error fetching cars', err);
-                if (err.response) {
-                    if (err.response.status === 403) {
-                        setError('Ошибка доступа при загрузке автомобилей. Срок действия сессии мог истечь.');
-                        setTimeout(() => navigate('/login'), 2000);
-                    } else if (err.response.status === 404) {
-                        setError('API для получения автомобилей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
-                    } else {
-                        setError(`Ошибка при загрузке автомобилей: ${err.response.status} ${err.response.statusText}`);
-                    }
-                } else if (err.request) {
-                    setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
-                } else {
-                    setError(`Ошибка при загрузке автомобилей: ${err.message}`);
-                }
-            }
-        };
-
         fetchCars();
-    }, [navigate]);
+    }, []);
+
+    const fetchCars = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
+            let url = 'http://localhost:8080/admin/cars';
+            const params = new URLSearchParams();
+
+            if (searchTerm) params.append('search', searchTerm);
+            if (statusFilter) params.append('status', statusFilter);
+            if (yearFromFilter) params.append('yearFrom', yearFromFilter);
+            if (yearToFilter) params.append('yearTo', yearToFilter);
+
+            if (params.toString()) {
+                url += `/filter?${params.toString()}`;
+            }
+
+            const response = await axios.get(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            if (response.data) {
+                setCars(response.data);
+            } else {
+                setError('Получены некорректные данные от сервера');
+            }
+        } catch (err) {
+            console.error('Error fetching cars', err);
+            if (err.response) {
+                if (err.response.status === 403) {
+                    setError('Ошибка доступа при загрузке автомобилей. Срок действия сессии мог истечь.');
+                    setTimeout(() => navigate('/login'), 2000);
+                } else if (err.response.status === 404) {
+                    setError('API для получения автомобилей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
+                } else {
+                    setError(`Ошибка при загрузке автомобилей: ${err.response.status} ${err.response.statusText}`);
+                }
+            } else if (err.request) {
+                setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
+            } else {
+                setError(`Ошибка при загрузке автомобилей: ${err.message}`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSearch = () => {
+        fetchCars();
+    };
+
+    const clearFilters = () => {
+        setSearchTerm('');
+        setStatusFilter('');
+        setYearFromFilter('');
+        setYearToFilter('');
+        // После очистки фильтров загружаем все автомобили
+        setTimeout(() => {
+            fetchCars();
+        }, 100);
+    };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Вы уверены, что хотите удалить этот автомобиль?')) return;
@@ -144,13 +190,7 @@ const CarList = () => {
             );
 
             // Обновляем список автомобилей
-            const response = await axios.get('http://localhost:8080/admin/cars', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-            setCars(response.data);
+            fetchCars();
         } catch (err) {
             console.error('Error unassigning driver', err);
             if (err.response && err.response.status === 403) {
@@ -235,6 +275,121 @@ const CarList = () => {
                             Добавить автомобиль
                         </Button>
                     </motion.div>
+                </Box>
+
+                {/* Фильтры */}
+                <Box sx={{ mb: 4 }}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+                        <TextField
+                            label="Поиск"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                            variant="outlined"
+                            size="small"
+                            sx={{ minWidth: '250px' }}
+                            placeholder="Поиск по марке, модели, номеру, VIN..."
+                        />
+                        <IconButton
+                            onClick={handleSearch}
+                            sx={{
+                                color: '#ff8c38',
+                                '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
+                            }}
+                        >
+                            <Search />
+                        </IconButton>
+                        <Button
+                            variant="outlined"
+                            startIcon={<FilterList />}
+                            onClick={() => setShowFilters(!showFilters)}
+                            sx={{
+                                borderColor: '#ff8c38',
+                                color: '#ff8c38',
+                                '&:hover': {
+                                    borderColor: '#76ff7a',
+                                    color: '#76ff7a',
+                                }
+                            }}
+                        >
+                            Фильтры
+                        </Button>
+                    </Box>
+
+                    {showFilters && (
+                        <Box sx={{
+                            p: 3,
+                            border: '1px solid rgba(255, 140, 56, 0.3)',
+                            borderRadius: '12px',
+                            background: 'rgba(255, 140, 56, 0.05)',
+                        }}>
+                            <Grid container spacing={3}>
+                                <Grid item xs={12} md={4}>
+                                    <FormControl fullWidth size="small">
+                                        <InputLabel>Статус</InputLabel>
+                                        <Select
+                                            value={statusFilter}
+                                            onChange={(e) => setStatusFilter(e.target.value)}
+                                            label="Статус"
+                                        >
+                                            <MenuItem value="">Все статусы</MenuItem>
+                                            <MenuItem value="IN_USE">Используется</MenuItem>
+                                            <MenuItem value="IN_REPAIR">На ремонте</MenuItem>
+                                            <MenuItem value="IN_MAINTENANCE">На обслуживании</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                    <TextField
+                                        label="Год с"
+                                        type="number"
+                                        value={yearFromFilter}
+                                        onChange={(e) => setYearFromFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        inputProps={{ min: 1900, max: 2030 }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                    <TextField
+                                        label="Год по"
+                                        type="number"
+                                        value={yearToFilter}
+                                        onChange={(e) => setYearToFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        inputProps={{ min: 1900, max: 2030 }}
+                                    />
+                                </Grid>
+                            </Grid>
+                            <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+                                <Button
+                                    variant="contained"
+                                    onClick={handleSearch}
+                                    sx={{
+                                        background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                                        color: '#1a1a1a',
+                                    }}
+                                >
+                                    Применить фильтры
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    onClick={clearFilters}
+                                    sx={{
+                                        borderColor: '#ff8c38',
+                                        color: '#ff8c38',
+                                        '&:hover': {
+                                            borderColor: '#76ff7a',
+                                            color: '#76ff7a',
+                                        }
+                                    }}
+                                >
+                                    Сбросить
+                                </Button>
+                            </Box>
+                        </Box>
+                    )}
                 </Box>
 
                 {error && (
@@ -408,7 +563,7 @@ const CarList = () => {
                                 <TableRow>
                                     <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                                         <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                                            Список автомобилей пуст
+                                            {loading ? 'Загрузка...' : 'Список автомобилей пуст'}
                                         </Typography>
                                     </TableCell>
                                 </TableRow>

@@ -16,6 +16,8 @@ import {
     IconButton,
     Tooltip,
     Avatar,
+    FormControlLabel,
+    Switch,
 } from '@mui/material';
 import {
     Edit,
@@ -32,50 +34,60 @@ const DriverList = () => {
     const navigate = useNavigate();
     const [drivers, setDrivers] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [carFilter, setCarFilter] = useState(null); // null - все, true - с авто, false - без авто
 
     useEffect(() => {
-        const fetchDrivers = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
-                    navigate('/login');
-                    return;
-                }
-
-                const response = await axios.get('http://localhost:8080/admin/drivers', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                });
-
-                if (response.data) {
-                    setDrivers(response.data);
-                } else {
-                    setError('Получены некорректные данные от сервера');
-                }
-            } catch (err) {
-                console.error('Error fetching drivers', err);
-                if (err.response) {
-                    if (err.response.status === 403) {
-                        setError('Ошибка доступа при загрузке водителей. Срок действия сессии мог истечь.');
-                        setTimeout(() => navigate('/login'), 2000);
-                    } else if (err.response.status === 404) {
-                        setError('API для получения водителей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
-                    } else {
-                        setError(`Ошибка при загрузке водителей: ${err.response.status} ${err.response.statusText}`);
-                    }
-                } else if (err.request) {
-                    setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
-                } else {
-                    setError(`Ошибка при загрузке водителей: ${err.message}`);
-                }
-            }
-        };
-
         fetchDrivers();
-    }, [navigate]);
+    }, [carFilter]);
+
+    const fetchDrivers = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
+            let url = 'http://localhost:8080/admin/drivers';
+            if (carFilter !== null) {
+                url += `/filter?hasCar=${carFilter}`;
+            }
+
+            const response = await axios.get(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            if (response.data) {
+                setDrivers(response.data);
+            } else {
+                setError('Получены некорректные данные от сервера');
+            }
+        } catch (err) {
+            console.error('Error fetching drivers', err);
+            if (err.response) {
+                if (err.response.status === 403) {
+                    setError('Ошибка доступа при загрузке водителей. Срок действия сессии мог истечь.');
+                    setTimeout(() => navigate('/login'), 2000);
+                } else if (err.response.status === 404) {
+                    setError('API для получения водителей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
+                } else {
+                    setError(`Ошибка при загрузке водителей: ${err.response.status} ${err.response.statusText}`);
+                }
+            } else if (err.request) {
+                setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
+            } else {
+                setError(`Ошибка при загрузке водителей: ${err.message}`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Вы уверены, что хотите удалить этого водителя?')) return;
@@ -122,6 +134,27 @@ const DriverList = () => {
         const firstInitial = firstName && firstName.length > 0 ? firstName.charAt(0).toUpperCase() : '';
         const lastInitial = lastName && lastName.length > 0 ? lastName.charAt(0).toUpperCase() : '';
         return `${firstInitial}${lastInitial}`;
+    };
+
+    const handleFilterChange = (event) => {
+        const value = event.target.checked;
+        setCarFilter(value ? true : null); // true - только с авто, null - все
+    };
+
+    const handleFilterToggle = () => {
+        if (carFilter === null) {
+            setCarFilter(true); // Показать только с авто
+        } else if (carFilter === true) {
+            setCarFilter(false); // Показать только без авто
+        } else {
+            setCarFilter(null); // Показать всех
+        }
+    };
+
+    const getFilterText = () => {
+        if (carFilter === null) return 'Все водители';
+        if (carFilter === true) return 'С автомобилем';
+        return 'Без автомобиля';
     };
 
     const sortedDrivers = [...drivers].sort((a, b) => a.id - b.id);
@@ -171,6 +204,68 @@ const DriverList = () => {
                             Добавить водителя
                         </Button>
                     </motion.div>
+                </Box>
+
+                {/* Фильтр */}
+                <Box sx={{
+                    mb: 4,
+                    p: 3,
+                    border: '1px solid rgba(255, 140, 56, 0.3)',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 140, 56, 0.05)',
+                }}>
+                    <Typography variant="h6" sx={{ mb: 2, color: '#ff8c38', fontWeight: 'bold' }}>
+                        Фильтр по назначению автомобиля
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Button
+                            variant={carFilter === null ? "contained" : "outlined"}
+                            onClick={() => setCarFilter(null)}
+                            sx={{
+                                borderColor: '#ff8c38',
+                                color: carFilter === null ? '#1a1a1a' : '#ff8c38',
+                                background: carFilter === null ? 'linear-gradient(45deg, #ff8c38, #76ff7a)' : 'transparent',
+                                '&:hover': {
+                                    borderColor: '#76ff7a',
+                                    color: carFilter === null ? '#1a1a1a' : '#76ff7a',
+                                }
+                            }}
+                        >
+                            Все водители
+                        </Button>
+                        <Button
+                            variant={carFilter === true ? "contained" : "outlined"}
+                            onClick={() => setCarFilter(true)}
+                            startIcon={<DirectionsCar />}
+                            sx={{
+                                borderColor: '#ff8c38',
+                                color: carFilter === true ? '#1a1a1a' : '#ff8c38',
+                                background: carFilter === true ? 'linear-gradient(45deg, #ff8c38, #76ff7a)' : 'transparent',
+                                '&:hover': {
+                                    borderColor: '#76ff7a',
+                                    color: carFilter === true ? '#1a1a1a' : '#76ff7a',
+                                }
+                            }}
+                        >
+                            С автомобилем
+                        </Button>
+                        <Button
+                            variant={carFilter === false ? "contained" : "outlined"}
+                            onClick={() => setCarFilter(false)}
+                            startIcon={<Person />}
+                            sx={{
+                                borderColor: '#ff8c38',
+                                color: carFilter === false ? '#1a1a1a' : '#ff8c38',
+                                background: carFilter === false ? 'linear-gradient(45deg, #ff8c38, #76ff7a)' : 'transparent',
+                                '&:hover': {
+                                    borderColor: '#76ff7a',
+                                    color: carFilter === false ? '#1a1a1a' : '#76ff7a',
+                                }
+                            }}
+                        >
+                            Без автомобиля
+                        </Button>
+                    </Box>
                 </Box>
 
                 {error && (
@@ -327,7 +422,7 @@ const DriverList = () => {
                                 <TableRow>
                                     <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
                                         <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                                            Список водителей пуст
+                                            {loading ? 'Загрузка...' : 'Список водителей пуст'}
                                         </Typography>
                                     </TableCell>
                                 </TableRow>
