@@ -17,6 +17,14 @@ import {
     Tooltip,
     Chip,
     CircularProgress,
+    TextField,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Grid,
+    Slider,
+    Collapse,
 } from '@mui/material';
 import {
     Edit,
@@ -27,6 +35,9 @@ import {
     CurrencyRuble,
     CalendarToday,
     Speed,
+    Search,
+    ExpandMore,
+    ExpandLess,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -34,55 +45,101 @@ import { motion } from 'framer-motion';
 const ServiceRecordList = () => {
     const navigate = useNavigate();
     const [serviceRecords, setServiceRecords] = useState([]);
+    const [cars, setCars] = useState([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
+
+    // Фильтры
+    const [searchTerm, setSearchTerm] = useState('');
+    const [carFilter, setCarFilter] = useState('');
+    const [startDateFromFilter, setStartDateFromFilter] = useState('');
+    const [startDateToFilter, setStartDateToFilter] = useState('');
+    const [endDateFromFilter, setEndDateFromFilter] = useState('');
+    const [endDateToFilter, setEndDateToFilter] = useState('');
+    const [minCost, setMinCost] = useState(0);
+    const [maxCost, setMaxCost] = useState(100000);
 
     useEffect(() => {
-        const fetchServiceRecords = async () => {
-            setLoading(true);
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
-                    navigate('/login');
-                    return;
-                }
-
-                const response = await axios.get('http://localhost:8080/admin/service-records', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                });
-
-                if (response.data) {
-                    setServiceRecords(response.data);
-                } else {
-                    setError('Получены некорректные данные от сервера');
-                }
-            } catch (err) {
-                console.error('Error fetching service records', err);
-                if (err.response) {
-                    if (err.response.status === 403) {
-                        setError('Ошибка доступа при загрузке сервисных записей. Срок действия сессии мог истечь.');
-                        setTimeout(() => navigate('/login'), 2000);
-                    } else if (err.response.status === 404) {
-                        setError('API для получения сервисных записей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
-                    } else {
-                        setError(`Ошибка при загрузке сервисных записей: ${err.response.status} ${err.response.statusText}`);
-                    }
-                } else if (err.request) {
-                    setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
-                } else {
-                    setError(`Ошибка при загрузке сервисных записей: ${err.message}`);
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchServiceRecords();
-    }, [navigate]);
+        fetchCars();
+    }, []);
+
+    const fetchCars = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await axios.get('http://localhost:8080/admin/cars', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+            setCars(response.data || []);
+        } catch (err) {
+            console.error('Error fetching cars', err);
+        }
+    };
+
+    const fetchServiceRecords = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
+            let url = 'http://localhost:8080/admin/service-records';
+            const params = new URLSearchParams();
+
+            if (searchTerm) params.append('search', searchTerm);
+            if (carFilter) params.append('carId', carFilter);
+            if (startDateFromFilter) params.append('startDateFrom', startDateFromFilter);
+            if (startDateToFilter) params.append('startDateTo', startDateToFilter);
+            if (endDateFromFilter) params.append('endDateFrom', endDateFromFilter);
+            if (endDateToFilter) params.append('endDateTo', endDateToFilter);
+            if (minCost > 0) params.append('minCost', minCost);
+            if (maxCost < 100000) params.append('maxCost', maxCost);
+
+            if (params.toString()) {
+                url += `/filter?${params.toString()}`;
+            }
+
+            const response = await axios.get(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            if (response.data) {
+                setServiceRecords(response.data);
+            } else {
+                setError('Получены некорректные данные от сервера');
+            }
+        } catch (err) {
+            console.error('Error fetching service records', err);
+            if (err.response) {
+                if (err.response.status === 403) {
+                    setError('Ошибка доступа при загрузке сервисных записей. Срок действия сессии мог истечь.');
+                    setTimeout(() => navigate('/login'), 2000);
+                } else if (err.response.status === 404) {
+                    setError('API для получения сервисных записей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
+                } else {
+                    setError(`Ошибка при загрузке сервисных записей: ${err.response.status} ${err.response.statusText}`);
+                }
+            } else if (err.request) {
+                setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
+            } else {
+                setError(`Ошибка при загрузке сервисных записей: ${err.message}`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Вы уверены, что хотите удалить эту сервисную запись?')) return;
@@ -116,6 +173,24 @@ const ServiceRecordList = () => {
         }
     };
 
+    const handleSearch = () => {
+        fetchServiceRecords();
+    };
+
+    const clearFilters = () => {
+        setSearchTerm('');
+        setCarFilter('');
+        setStartDateFromFilter('');
+        setStartDateToFilter('');
+        setEndDateFromFilter('');
+        setEndDateToFilter('');
+        setMinCost(0);
+        setMaxCost(100000);
+        setTimeout(() => {
+            fetchServiceRecords();
+        }, 100);
+    };
+
     const formatDate = (dateStr) => {
         try {
             const date = new Date(dateStr);
@@ -139,7 +214,7 @@ const ServiceRecordList = () => {
         }
     };
 
-    const sortedServiceRecords = [...serviceRecords].sort((a, b) => b.id - a.id); // Сортировка по убыванию ID (новые сверху)
+    const sortedServiceRecords = [...serviceRecords].sort((a, b) => b.id - a.id);
 
     return (
         <Container maxWidth={false} sx={{ maxWidth: '1800px', mt: 4, pt: 4, px: 3 }}>
@@ -186,6 +261,173 @@ const ServiceRecordList = () => {
                             Добавить запись
                         </Button>
                     </motion.div>
+                </Box>
+
+                {/* Фильтры */}
+                <Box sx={{ mb: 4 }}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+                        <TextField
+                            label="Поиск"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                            variant="outlined"
+                            size="small"
+                            sx={{ minWidth: '250px' }}
+                            placeholder="Поиск по автомобилю или деталям..."
+                        />
+                        <IconButton
+                            onClick={handleSearch}
+                            sx={{
+                                color: '#ff8c38',
+                                '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
+                            }}
+                        >
+                            <Search />
+                        </IconButton>
+                        <Button
+                            variant="outlined"
+                            startIcon={showFilters ? <ExpandLess /> : <ExpandMore />}
+                            onClick={() => setShowFilters(!showFilters)}
+                            sx={{
+                                borderColor: '#ff8c38',
+                                color: '#ff8c38',
+                                '&:hover': {
+                                    borderColor: '#76ff7a',
+                                    color: '#76ff7a',
+                                }
+                            }}
+                        >
+                            Фильтры
+                        </Button>
+                    </Box>
+
+                    <Collapse in={showFilters}>
+                        <Box sx={{
+                            p: 3,
+                            border: '1px solid rgba(255, 140, 56, 0.3)',
+                            borderRadius: '12px',
+                            background: 'rgba(255, 140, 56, 0.05)',
+                        }}>
+                            <Grid container spacing={3}>
+                                <Grid item xs={12} md={6}>
+                                    <FormControl fullWidth size="small">
+                                        <InputLabel>Автомобиль</InputLabel>
+                                        <Select
+                                            value={carFilter}
+                                            onChange={(e) => setCarFilter(e.target.value)}
+                                            label="Автомобиль"
+                                        >
+                                            <MenuItem value="">Все автомобили</MenuItem>
+                                            {cars.map((car) => (
+                                                <MenuItem key={car.id} value={car.id}>
+                                                    {car.brand} {car.model} ({car.licensePlate})
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Дата начала с"
+                                        type="date"
+                                        value={startDateFromFilter}
+                                        onChange={(e) => setStartDateFromFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Дата начала по"
+                                        type="date"
+                                        value={startDateToFilter}
+                                        onChange={(e) => setStartDateToFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Дата окончания с"
+                                        type="date"
+                                        value={endDateFromFilter}
+                                        onChange={(e) => setEndDateFromFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Дата окончания по"
+                                        type="date"
+                                        value={endDateToFilter}
+                                        onChange={(e) => setEndDateToFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="subtitle1" sx={{ mb: 2, color: '#ff8c38', fontWeight: 'bold' }}>
+                                        Диапазон стоимости: {minCost} ₽ - {maxCost} ₽
+                                    </Typography>
+                                    <Slider
+                                        value={[minCost, maxCost]}
+                                        onChange={(e, newValue) => {
+                                            setMinCost(newValue[0]);
+                                            setMaxCost(newValue[1]);
+                                        }}
+                                        valueLabelDisplay="auto"
+                                        min={0}
+                                        max={100000}
+                                        step={1000}
+                                        sx={{
+                                            color: '#ff8c38',
+                                            '& .MuiSlider-thumb': {
+                                                backgroundColor: '#ff8c38',
+                                            },
+                                            '& .MuiSlider-track': {
+                                                backgroundColor: '#ff8c38',
+                                            },
+                                            '& .MuiSlider-rail': {
+                                                backgroundColor: 'rgba(255, 140, 56, 0.3)',
+                                            },
+                                        }}
+                                    />
+                                </Grid>
+                            </Grid>
+                            <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+                                <Button
+                                    variant="contained"
+                                    onClick={handleSearch}
+                                    sx={{
+                                        background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                                        color: '#1a1a1a',
+                                    }}
+                                >
+                                    Применить фильтры
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    onClick={clearFilters}
+                                    sx={{
+                                        borderColor: '#ff8c38',
+                                        color: '#ff8c38',
+                                        '&:hover': {
+                                            borderColor: '#76ff7a',
+                                            color: '#76ff7a',
+                                        }
+                                    }}
+                                >
+                                    Сбросить
+                                </Button>
+                            </Box>
+                        </Box>
+                    </Collapse>
                 </Box>
 
                 {error && (

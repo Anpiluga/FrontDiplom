@@ -17,6 +17,14 @@ import {
     Tooltip,
     Chip,
     CircularProgress,
+    TextField,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Grid,
+    Slider,
+    Collapse,
 } from '@mui/material';
 import {
     Edit,
@@ -28,6 +36,10 @@ import {
     CalendarToday,
     Speed,
     LocalAtm,
+    Search,
+    FilterList,
+    ExpandMore,
+    ExpandLess,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -37,53 +49,78 @@ const FuelList = () => {
     const [fuelEntries, setFuelEntries] = useState([]);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
+
+    // Фильтры
+    const [searchTerm, setSearchTerm] = useState('');
+    const [gasStationFilter, setGasStationFilter] = useState('');
+    const [fuelTypeFilter, setFuelTypeFilter] = useState('');
+    const [minCost, setMinCost] = useState(0);
+    const [maxCost, setMaxCost] = useState(10000);
+    const [dateFromFilter, setDateFromFilter] = useState('');
+    const [dateToFilter, setDateToFilter] = useState('');
 
     useEffect(() => {
-        const fetchFuelEntries = async () => {
-            setLoading(true);
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
-                    navigate('/login');
-                    return;
-                }
-
-                const response = await axios.get('http://localhost:8080/admin/fuel-entries', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                });
-
-                if (response.data) {
-                    setFuelEntries(response.data);
-                } else {
-                    setError('Получены некорректные данные от сервера');
-                }
-            } catch (err) {
-                console.error('Error fetching fuel entries', err);
-                if (err.response) {
-                    if (err.response.status === 403) {
-                        setError('Ошибка доступа при загрузке заправок. Срок действия сессии мог истечь.');
-                        setTimeout(() => navigate('/login'), 2000);
-                    } else if (err.response.status === 404) {
-                        setError('API для получения заправок не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
-                    } else {
-                        setError(`Ошибка при загрузке заправок: ${err.response.status} ${err.response.statusText}`);
-                    }
-                } else if (err.request) {
-                    setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
-                } else {
-                    setError(`Ошибка при загрузке заправок: ${err.message}`);
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchFuelEntries();
-    }, [navigate]);
+    }, []);
+
+    const fetchFuelEntries = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
+            let url = 'http://localhost:8080/admin/fuel-entries';
+            const params = new URLSearchParams();
+
+            if (searchTerm) params.append('search', searchTerm);
+            if (gasStationFilter) params.append('gasStation', gasStationFilter);
+            if (fuelTypeFilter) params.append('fuelType', fuelTypeFilter);
+            if (minCost > 0) params.append('minCost', minCost);
+            if (maxCost < 10000) params.append('maxCost', maxCost);
+            if (dateFromFilter) params.append('dateFrom', dateFromFilter);
+            if (dateToFilter) params.append('dateTo', dateToFilter);
+
+            if (params.toString()) {
+                url += `/filter?${params.toString()}`;
+            }
+
+            const response = await axios.get(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            if (response.data) {
+                setFuelEntries(response.data);
+            } else {
+                setError('Получены некорректные данные от сервера');
+            }
+        } catch (err) {
+            console.error('Error fetching fuel entries', err);
+            if (err.response) {
+                if (err.response.status === 403) {
+                    setError('Ошибка доступа при загрузке заправок. Срок действия сессии мог истечь.');
+                    setTimeout(() => navigate('/login'), 2000);
+                } else if (err.response.status === 404) {
+                    setError('API для получения заправок не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
+                } else {
+                    setError(`Ошибка при загрузке заправок: ${err.response.status} ${err.response.statusText}`);
+                }
+            } else if (err.request) {
+                setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
+            } else {
+                setError(`Ошибка при загрузке заправок: ${err.message}`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Вы уверены, что хотите удалить эту запись о заправке?')) return;
@@ -115,6 +152,23 @@ const FuelList = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSearch = () => {
+        fetchFuelEntries();
+    };
+
+    const clearFilters = () => {
+        setSearchTerm('');
+        setGasStationFilter('');
+        setFuelTypeFilter('');
+        setMinCost(0);
+        setMaxCost(10000);
+        setDateFromFilter('');
+        setDateToFilter('');
+        setTimeout(() => {
+            fetchFuelEntries();
+        }, 100);
     };
 
     const getFuelTypeInfo = (type) => {
@@ -173,7 +227,7 @@ const FuelList = () => {
         }
     };
 
-    const sortedFuelEntries = [...fuelEntries].sort((a, b) => b.id - a.id); // Сортировка по убыванию ID (новые сверху)
+    const sortedFuelEntries = [...fuelEntries].sort((a, b) => b.id - a.id);
 
     return (
         <Container maxWidth={false} sx={{ maxWidth: '1800px', mt: 4, pt: 4, px: 3 }}>
@@ -220,6 +274,161 @@ const FuelList = () => {
                             Добавить заправку
                         </Button>
                     </motion.div>
+                </Box>
+
+                {/* Фильтры */}
+                <Box sx={{ mb: 4 }}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+                        <TextField
+                            label="Поиск"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                            variant="outlined"
+                            size="small"
+                            sx={{ minWidth: '250px' }}
+                            placeholder="Поиск по автомобилю или заправке..."
+                        />
+                        <IconButton
+                            onClick={handleSearch}
+                            sx={{
+                                color: '#ff8c38',
+                                '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
+                            }}
+                        >
+                            <Search />
+                        </IconButton>
+                        <Button
+                            variant="outlined"
+                            startIcon={showFilters ? <ExpandLess /> : <ExpandMore />}
+                            onClick={() => setShowFilters(!showFilters)}
+                            sx={{
+                                borderColor: '#ff8c38',
+                                color: '#ff8c38',
+                                '&:hover': {
+                                    borderColor: '#76ff7a',
+                                    color: '#76ff7a',
+                                }
+                            }}
+                        >
+                            Фильтры
+                        </Button>
+                    </Box>
+
+                    <Collapse in={showFilters}>
+                        <Box sx={{
+                            p: 3,
+                            border: '1px solid rgba(255, 140, 56, 0.3)',
+                            borderRadius: '12px',
+                            background: 'rgba(255, 140, 56, 0.05)',
+                        }}>
+                            <Grid container spacing={3}>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Название заправки"
+                                        value={gasStationFilter}
+                                        onChange={(e) => setGasStationFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        placeholder="например, Лукойл"
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <FormControl fullWidth size="small">
+                                        <InputLabel>Тип топлива</InputLabel>
+                                        <Select
+                                            value={fuelTypeFilter}
+                                            onChange={(e) => setFuelTypeFilter(e.target.value)}
+                                            label="Тип топлива"
+                                        >
+                                            <MenuItem value="">Все типы</MenuItem>
+                                            <MenuItem value="GASOLINE">Бензин</MenuItem>
+                                            <MenuItem value="DIESEL">ДТ</MenuItem>
+                                            <MenuItem value="PROPANE">Пропан</MenuItem>
+                                            <MenuItem value="METHANE">Метан</MenuItem>
+                                            <MenuItem value="ELECTRICITY">Электричество</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Дата с"
+                                        type="date"
+                                        value={dateFromFilter}
+                                        onChange={(e) => setDateFromFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Дата по"
+                                        type="date"
+                                        value={dateToFilter}
+                                        onChange={(e) => setDateToFilter(e.target.value)}
+                                        size="small"
+                                        fullWidth
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12}>
+                                    <Typography variant="subtitle1" sx={{ mb: 2, color: '#ff8c38', fontWeight: 'bold' }}>
+                                        Диапазон стоимости: {minCost} ₽ - {maxCost} ₽
+                                    </Typography>
+                                    <Slider
+                                        value={[minCost, maxCost]}
+                                        onChange={(e, newValue) => {
+                                            setMinCost(newValue[0]);
+                                            setMaxCost(newValue[1]);
+                                        }}
+                                        valueLabelDisplay="auto"
+                                        min={0}
+                                        max={10000}
+                                        step={100}
+                                        sx={{
+                                            color: '#ff8c38',
+                                            '& .MuiSlider-thumb': {
+                                                backgroundColor: '#ff8c38',
+                                            },
+                                            '& .MuiSlider-track': {
+                                                backgroundColor: '#ff8c38',
+                                            },
+                                            '& .MuiSlider-rail': {
+                                                backgroundColor: 'rgba(255, 140, 56, 0.3)',
+                                            },
+                                        }}
+                                    />
+                                </Grid>
+                            </Grid>
+                            <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+                                <Button
+                                    variant="contained"
+                                    onClick={handleSearch}
+                                    sx={{
+                                        background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                                        color: '#1a1a1a',
+                                    }}
+                                >
+                                    Применить фильтры
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    onClick={clearFilters}
+                                    sx={{
+                                        borderColor: '#ff8c38',
+                                        color: '#ff8c38',
+                                        '&:hover': {
+                                            borderColor: '#76ff7a',
+                                            color: '#76ff7a',
+                                        }
+                                    }}
+                                >
+                                    Сбросить
+                                </Button>
+                            </Box>
+                        </Box>
+                    </Collapse>
                 </Box>
 
                 {error && (
