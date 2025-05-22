@@ -24,6 +24,7 @@ import {
     DirectionsCar,
     Person,
     PersonOff,
+    Visibility,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -88,6 +89,21 @@ const CarList = () => {
                 return;
             }
 
+            // Сначала проверим, есть ли привязанный водитель, и отвяжем его
+            const carToDelete = cars.find(car => car.id === id);
+            if (carToDelete && carToDelete.driverId) {
+                try {
+                    await axios.post(`http://localhost:8080/admin/cars/${id}/unassign-driver`, {}, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                    });
+                } catch (unassignError) {
+                    console.log('Driver unassignment failed, continuing with deletion:', unassignError);
+                }
+            }
+
             await axios.delete(`http://localhost:8080/admin/cars/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -100,46 +116,10 @@ const CarList = () => {
             if (err.response && err.response.status === 403) {
                 setError('Ошибка доступа при удалении автомобиля. Срок действия сессии мог истечь.');
                 setTimeout(() => navigate('/login'), 2000);
+            } else if (err.response && err.response.status === 500) {
+                setError('Ошибка сервера при удалении автомобиля. Возможно, автомобиль связан с другими записями.');
             } else {
                 setError('Ошибка при удалении автомобиля. Пожалуйста, попробуйте снова позже.');
-            }
-        }
-    };
-
-    const handleAssignDriver = async (carId, driverId) => {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
-                navigate('/login');
-                return;
-            }
-
-            await axios.post(`http://localhost:8080/admin/cars/${carId}/assign-driver`,
-                { driverId },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            // Обновляем список автомобилей
-            const response = await axios.get('http://localhost:8080/admin/cars', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-            });
-            setCars(response.data);
-        } catch (err) {
-            console.error('Error assigning driver', err);
-            if (err.response && err.response.status === 403) {
-                setError('Ошибка доступа при назначении водителя. Срок действия сессии мог истечь.');
-                setTimeout(() => navigate('/login'), 2000);
-            } else {
-                setError('Ошибка при назначении водителя. Пожалуйста, попробуйте снова позже.');
             }
         }
     };
@@ -316,7 +296,7 @@ const CarList = () => {
                                 <TableCell sx={{ minWidth: 180 }}>VIN</TableCell>
                                 <TableCell sx={{ minWidth: 120 }}>Статус</TableCell>
                                 <TableCell sx={{ minWidth: 200 }}>Водитель</TableCell>
-                                <TableCell align="center" sx={{ minWidth: 200 }}>Действия</TableCell>
+                                <TableCell align="center" sx={{ minWidth: 250 }}>Действия</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -386,6 +366,17 @@ const CarList = () => {
                                     </TableCell>
                                     <TableCell>
                                         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                                            <Tooltip title="Просмотреть">
+                                                <IconButton
+                                                    onClick={() => navigate(`/cars/view/${car.id}`)}
+                                                    sx={{
+                                                        color: '#2196f3',
+                                                        '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.1)' }
+                                                    }}
+                                                >
+                                                    <Visibility />
+                                                </IconButton>
+                                            </Tooltip>
                                             <Tooltip title="Редактировать">
                                                 <IconButton
                                                     onClick={() => navigate(`/cars/edit/${car.id}`)}

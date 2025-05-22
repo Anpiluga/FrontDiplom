@@ -5,10 +5,15 @@ import Login from './pages/FR/components/Login';
 import Register from './pages/FR/components/Register';
 import CarList from './pages/FR/components/CarList';
 import CarForm from './pages/FR/components/CarForm';
+import CarView from './pages/FR/components/CarView';
 import DriverList from './pages/FR/components/DriverList';
 import DriverForm from './pages/FR/components/DriverForm';
 import FuelList from './pages/FR/components/FuelList';
 import FuelForm from './pages/FR/components/FuelForm';
+import ServiceRecordList from './pages/FR/components/ServiceRecordList';
+import ServiceRecordForm from './pages/FR/components/ServiceRecordForm';
+import ServiceTaskList from './pages/FR/components/ServiceTaskList';
+import ServiceTaskForm from './pages/FR/components/ServiceTaskForm';
 import Home from './pages/FR/components/Home';
 import ProtectedRoute from './pages/FR/components/ProtectedRoute';
 import { CssBaseline, Box } from '@mui/material';
@@ -37,7 +42,12 @@ function AppContent() {
 
     console.log('Current path:', location.pathname);
     console.log('darkMode:', darkMode);
-    const showSidebar = ['/home', '/cars', '/drivers', '/fuel', '/cars/add', '/cars/edit', '/drivers/add', '/drivers/edit', '/fuel/add', '/fuel/edit'].some(path => location.pathname.startsWith(path));
+    const showSidebar = [
+        '/home', '/cars', '/drivers', '/fuel', '/service-records', '/service-tasks',
+        '/cars/add', '/cars/edit', '/cars/view', '/drivers/add', '/drivers/edit',
+        '/fuel/add', '/fuel/edit', '/service-records/add', '/service-records/edit',
+        '/service-tasks/add', '/service-tasks/edit'
+    ].some(path => location.pathname.startsWith(path));
     console.log('showSidebar:', showSidebar);
     const theme = getTheme(darkMode !== undefined ? darkMode : true);
 
@@ -107,6 +117,7 @@ function AppContent() {
                                     </ProtectedRoute>
                                 }
                             />
+                            {/* Car routes */}
                             <Route
                                 path="/cars"
                                 element={
@@ -132,6 +143,15 @@ function AppContent() {
                                 }
                             />
                             <Route
+                                path="/cars/view/:id"
+                                element={
+                                    <ProtectedRoute>
+                                        <CarView />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            {/* Driver routes */}
+                            <Route
                                 path="/drivers"
                                 element={
                                     <ProtectedRoute>
@@ -155,6 +175,7 @@ function AppContent() {
                                     </ProtectedRoute>
                                 }
                             />
+                            {/* Fuel routes */}
                             <Route
                                 path="/fuel"
                                 element={
@@ -176,6 +197,56 @@ function AppContent() {
                                 element={
                                     <ProtectedRoute>
                                         <FuelForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            {/* Service Record routes */}
+                            <Route
+                                path="/service-records"
+                                element={
+                                    <ProtectedRoute>
+                                        <ServiceRecordList />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/service-records/add"
+                                element={
+                                    <ProtectedRoute>
+                                        <ServiceRecordForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/service-records/edit/:id"
+                                element={
+                                    <ProtectedRoute>
+                                        <ServiceRecordForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            {/* Service Task routes */}
+                            <Route
+                                path="/service-tasks"
+                                element={
+                                    <ProtectedRoute>
+                                        <ServiceTaskList />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/service-tasks/add"
+                                element={
+                                    <ProtectedRoute>
+                                        <ServiceTaskForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/service-tasks/edit/:id"
+                                element={
+                                    <ProtectedRoute>
+                                        <ServiceTaskForm />
                                     </ProtectedRoute>
                                 }
                             />

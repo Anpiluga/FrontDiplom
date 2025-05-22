@@ -15,26 +15,27 @@ import {
     Box,
     IconButton,
     Tooltip,
-    Avatar,
+    CircularProgress,
 } from '@mui/material';
 import {
     Edit,
     Delete,
     Add,
-    Person,
-    DirectionsCar,
-    Phone,
+    Task,
+    Assignment,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
-const DriverList = () => {
+const ServiceTaskList = () => {
     const navigate = useNavigate();
-    const [drivers, setDrivers] = useState([]);
+    const [serviceTasks, setServiceTasks] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const fetchDrivers = async () => {
+        const fetchServiceTasks = async () => {
+            setLoading(true);
             try {
                 const token = localStorage.getItem('token');
                 if (!token) {
@@ -43,7 +44,7 @@ const DriverList = () => {
                     return;
                 }
 
-                const response = await axios.get('http://localhost:8080/admin/drivers', {
+                const response = await axios.get('http://localhost:8080/admin/service-tasks', {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -51,35 +52,38 @@ const DriverList = () => {
                 });
 
                 if (response.data) {
-                    setDrivers(response.data);
+                    setServiceTasks(response.data);
                 } else {
                     setError('Получены некорректные данные от сервера');
                 }
             } catch (err) {
-                console.error('Error fetching drivers', err);
+                console.error('Error fetching service tasks', err);
                 if (err.response) {
                     if (err.response.status === 403) {
-                        setError('Ошибка доступа при загрузке водителей. Срок действия сессии мог истечь.');
+                        setError('Ошибка доступа при загрузке сервисных задач. Срок действия сессии мог истечь.');
                         setTimeout(() => navigate('/login'), 2000);
                     } else if (err.response.status === 404) {
-                        setError('API для получения водителей не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
+                        setError('API для получения сервисных задач не найден. Пожалуйста, убедитесь, что сервер запущен и API доступен.');
                     } else {
-                        setError(`Ошибка при загрузке водителей: ${err.response.status} ${err.response.statusText}`);
+                        setError(`Ошибка при загрузке сервисных задач: ${err.response.status} ${err.response.statusText}`);
                     }
                 } else if (err.request) {
                     setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
                 } else {
-                    setError(`Ошибка при загрузке водителей: ${err.message}`);
+                    setError(`Ошибка при загрузке сервисных задач: ${err.message}`);
                 }
+            } finally {
+                setLoading(false);
             }
         };
 
-        fetchDrivers();
+        fetchServiceTasks();
     }, [navigate]);
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Вы уверены, что хотите удалить этого водителя?')) return;
+        if (!window.confirm('Вы уверены, что хотите удалить эту сервисную задачу?')) return;
 
+        setLoading(true);
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -88,43 +92,27 @@ const DriverList = () => {
                 return;
             }
 
-            await axios.delete(`http://localhost:8080/admin/drivers/${id}`, {
+            await axios.delete(`http://localhost:8080/admin/service-tasks/${id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
             });
-            setDrivers(drivers.filter((driver) => driver.id !== id));
+            setServiceTasks(serviceTasks.filter((task) => task.id !== id));
         } catch (err) {
-            console.error('Error deleting driver', err);
+            console.error('Error deleting service task', err);
             if (err.response && err.response.status === 403) {
-                setError('Ошибка доступа при удалении водителя. Срок действия сессии мог истечь.');
+                setError('Ошибка доступа при удалении задачи. Срок действия сессии мог истечь.');
                 setTimeout(() => navigate('/login'), 2000);
             } else {
-                setError('Ошибка при удалении водителя. Пожалуйста, попробуйте снова позже.');
+                setError('Ошибка при удалении сервисной задачи. Пожалуйста, попробуйте снова позже.');
             }
+        } finally {
+            setLoading(false);
         }
     };
 
-    const getRandomColor = (id) => {
-        const colors = [
-            '#f44336', '#e91e63', '#9c27b0', '#673ab7',
-            '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4',
-            '#009688', '#4caf50', '#8bc34a', '#cddc39',
-            '#ffc107', '#ff9800', '#ff5722'
-        ];
-
-        // Используем ID водителя для получения стабильного цвета для одного и того же водителя
-        return colors[id % colors.length];
-    };
-
-    const getInitials = (firstName, lastName) => {
-        const firstInitial = firstName && firstName.length > 0 ? firstName.charAt(0).toUpperCase() : '';
-        const lastInitial = lastName && lastName.length > 0 ? lastName.charAt(0).toUpperCase() : '';
-        return `${firstInitial}${lastInitial}`;
-    };
-
-    const sortedDrivers = [...drivers].sort((a, b) => a.id - b.id);
+    const sortedServiceTasks = [...serviceTasks].sort((a, b) => b.id - a.id); // Сортировка по убыванию ID (новые сверху)
 
     return (
         <Container maxWidth={false} sx={{ maxWidth: '1800px', mt: 4, pt: 4, px: 3 }}>
@@ -148,13 +136,13 @@ const DriverList = () => {
                             fontWeight: 'bold'
                         }}
                     >
-                        Список водителей
+                        Сервисные задачи
                     </Typography>
 
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button
                             variant="contained"
-                            onClick={() => navigate('/drivers/add')}
+                            onClick={() => navigate('/service-tasks/add')}
                             startIcon={<Add />}
                             sx={{
                                 background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
@@ -168,7 +156,7 @@ const DriverList = () => {
                                 }
                             }}
                         >
-                            Добавить водителя
+                            Добавить задачу
                         </Button>
                     </motion.div>
                 </Box>
@@ -191,6 +179,12 @@ const DriverList = () => {
                     >
                         {error}
                     </Alert>
+                )}
+
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                        <CircularProgress color="primary" />
+                    </Box>
                 )}
 
                 <TableContainer
@@ -226,16 +220,16 @@ const DriverList = () => {
                         <TableHead>
                             <TableRow>
                                 <TableCell align="center" sx={{ width: 70 }}>ID</TableCell>
-                                <TableCell sx={{ minWidth: 300 }}>Водитель</TableCell>
-                                <TableCell sx={{ minWidth: 180 }}>Телефон</TableCell>
-                                <TableCell sx={{ minWidth: 250 }}>Автомобиль</TableCell>
-                                <TableCell align="center" sx={{ minWidth: 200 }}>Действия</TableCell>
+                                <TableCell sx={{ minWidth: 350 }}>Сервисная запись</TableCell>
+                                <TableCell sx={{ minWidth: 200 }}>Задача</TableCell>
+                                <TableCell sx={{ minWidth: 300 }}>Описание</TableCell>
+                                <TableCell align="center" sx={{ minWidth: 120 }}>Действия</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {sortedDrivers.map((driver) => (
+                            {sortedServiceTasks.map((task) => (
                                 <TableRow
-                                    key={driver.id}
+                                    key={task.id}
                                     component={motion.tr}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
@@ -250,55 +244,39 @@ const DriverList = () => {
                                         borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
                                     }}
                                 >
-                                    <TableCell align="center">{driver.id}</TableCell>
+                                    <TableCell align="center">{task.id}</TableCell>
                                     <TableCell>
                                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Avatar
-                                                sx={{
-                                                    bgcolor: getRandomColor(driver.id),
-                                                    mr: 2,
-                                                    width: 40,
-                                                    height: 40,
-                                                    fontSize: '1rem'
-                                                }}
-                                            >
-                                                {getInitials(driver.firstName, driver.lastName)}
-                                            </Avatar>
-                                            <Box>
-                                                <Typography sx={{ fontWeight: 'bold' }}>
-                                                    {driver.firstName} {driver.lastName}
-                                                </Typography>
-                                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                                    {driver.middleName || ''}
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Phone sx={{ mr: 1, color: '#76ff7a', fontSize: '1.2rem' }} />
-                                            <Typography>{driver.phoneNumber}</Typography>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                        {driver.hasCar ? (
-                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                                <DirectionsCar sx={{ mr: 1, color: '#4caf50', fontSize: '1.2rem' }} />
-                                                <Typography sx={{ fontWeight: 'bold' }}>
-                                                    Назначен на автомобиль
-                                                </Typography>
-                                            </Box>
-                                        ) : (
-                                            <Typography sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                                Не назначен
+                                            <Assignment sx={{ mr: 1, color: '#ff8c38' }} />
+                                            <Typography sx={{ fontWeight: 'bold' }}>
+                                                {task.serviceRecordDetails}
                                             </Typography>
-                                        )}
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                            <Task sx={{ mr: 1, color: '#76ff7a', fontSize: '1.2rem' }} />
+                                            <Typography sx={{ fontWeight: 'bold' }}>{task.taskName}</Typography>
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography
+                                            sx={{
+                                                maxWidth: 300,
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                            title={task.taskDescription}
+                                        >
+                                            {task.taskDescription || 'Нет описания'}
+                                        </Typography>
                                     </TableCell>
                                     <TableCell>
                                         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
                                             <Tooltip title="Редактировать">
                                                 <IconButton
-                                                    onClick={() => navigate(`/drivers/edit/${driver.id}`)}
+                                                    onClick={() => navigate(`/service-tasks/edit/${task.id}`)}
                                                     sx={{
                                                         color: '#ff8c38',
                                                         '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
@@ -309,7 +287,7 @@ const DriverList = () => {
                                             </Tooltip>
                                             <Tooltip title="Удалить">
                                                 <IconButton
-                                                    onClick={() => handleDelete(driver.id)}
+                                                    onClick={() => handleDelete(task.id)}
                                                     sx={{
                                                         color: '#f44336',
                                                         '&:hover': { backgroundColor: 'rgba(244, 67, 54, 0.1)' }
@@ -323,11 +301,11 @@ const DriverList = () => {
                                 </TableRow>
                             ))}
 
-                            {sortedDrivers.length === 0 && (
+                            {sortedServiceTasks.length === 0 && !loading && (
                                 <TableRow>
                                     <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
                                         <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                                            Список водителей пуст
+                                            Список сервисных задач пуст
                                         </Typography>
                                     </TableCell>
                                 </TableRow>
@@ -340,4 +318,4 @@ const DriverList = () => {
     );
 };
 
-export default DriverList;
+export default ServiceTaskList;

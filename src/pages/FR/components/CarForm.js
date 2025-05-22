@@ -280,7 +280,6 @@ const CarForm = () => {
                 odometr: parseInt(formData.odometr),
                 fuelConsumption: parseFloat(formData.fuelConsumption),
                 status: formData.status,
-                driverId: formData.driverId ? parseInt(formData.driverId) : null,
                 counterType: formData.counterType,
                 secondaryCounterEnabled: formData.secondaryCounterEnabled,
                 secondaryCounterType: formData.secondaryCounterType,
@@ -310,6 +309,21 @@ const CarForm = () => {
 
             if (response.ok) {
                 console.log('Car saved successfully');
+
+                // Если есть водитель для назначения, назначаем его отдельно
+                if (formData.driverId) {
+                    try {
+                        await fetch(`http://localhost:8080/admin/cars/${id || (await response.json()).id}/assign-driver`, {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify({ driverId: parseInt(formData.driverId) })
+                        });
+                    } catch (assignError) {
+                        console.error('Error assigning driver:', assignError);
+                        setError('Автомобиль сохранен, но произошла ошибка при назначении водителя');
+                    }
+                }
+
                 navigate('/cars');
             } else if (response.status === 403) {
                 try {
