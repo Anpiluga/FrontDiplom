@@ -37,10 +37,12 @@ const getTheme = (mode) => createTheme({
         h5: {
             fontFamily: "'Ubuntu', sans-serif",
             fontWeight: 600,
+            color: mode ? '#ffffff' : '#1a1a1a',
         },
         h6: {
             fontFamily: "'Ubuntu', sans-serif",
             fontWeight: 500,
+            color: mode ? '#ffffff' : '#1a1a1a',
         },
         body1: {
             fontFamily: "'Ubuntu', sans-serif",
@@ -49,6 +51,18 @@ const getTheme = (mode) => createTheme({
         body2: {
             fontFamily: "'Ubuntu', sans-serif",
             color: mode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+        },
+        subtitle1: {
+            fontFamily: "'Ubuntu', sans-serif",
+            color: mode ? '#ffffff' : '#1a1a1a',
+        },
+        subtitle2: {
+            fontFamily: "'Ubuntu', sans-serif",
+            color: mode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
+        },
+        caption: {
+            fontFamily: "'Ubuntu', sans-serif",
+            color: mode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
         },
     },
     components: {
@@ -61,6 +75,7 @@ const getTheme = (mode) => createTheme({
                     padding: '10px 20px',
                     transition: 'all 0.3s ease',
                     fontSize: '16px',
+                    color: mode ? '#ffffff' : '#1a1a1a',
                     '&:hover': {
                         transform: 'translateY(-2px)',
                         boxShadow: mode ? '0 4px 15px rgba(255, 140, 56, 0.4)' : '0 4px 15px rgba(0, 0, 0, 0.2)',
@@ -68,7 +83,7 @@ const getTheme = (mode) => createTheme({
                 },
                 contained: {
                     background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
-                    color: mode ? '#1a1a1a' : '#ffffff',
+                    color: '#1a1a1a',
                 },
                 outlined: {
                     borderColor: mode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
@@ -88,6 +103,11 @@ const getTheme = (mode) => createTheme({
                 primary: {
                     fontFamily: "'Ubuntu', sans-serif",
                     fontSize: '16px',
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                secondary: {
+                    fontFamily: "'Ubuntu', sans-serif",
+                    color: mode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
                 },
             },
         },
@@ -110,6 +130,7 @@ const getTheme = (mode) => createTheme({
                     backdropFilter: 'blur(10px)',
                     border: mode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
                     boxShadow: mode ? '0 4px 30px rgba(0, 0, 0, 0.2)' : '0 4px 30px rgba(0, 0, 0, 0.1)',
+                    color: mode ? '#ffffff' : '#1a1a1a',
                 },
             },
         },
@@ -178,6 +199,7 @@ const getTheme = (mode) => createTheme({
             styleOverrides: {
                 root: {
                     fontFamily: "'Ubuntu', sans-serif",
+                    color: mode ? '#ffffff' : '#1a1a1a',
                 },
             },
         },
@@ -185,6 +207,7 @@ const getTheme = (mode) => createTheme({
             styleOverrides: {
                 root: {
                     fontFamily: "'Ubuntu', sans-serif",
+                    color: mode ? '#ffffff' : '#1a1a1a',
                 },
             },
         },
@@ -192,6 +215,112 @@ const getTheme = (mode) => createTheme({
             styleOverrides: {
                 root: {
                     fontFamily: "'Ubuntu', sans-serif",
+                },
+            },
+        },
+        MuiTypography: {
+            styleOverrides: {
+                root: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                h1: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                h2: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                h3: {
+                    // Сохраняем градиент для h3
+                },
+                h4: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                h5: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                h6: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                body1: {
+                    color: mode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
+                },
+                body2: {
+                    color: mode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+                },
+                subtitle1: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                subtitle2: {
+                    color: mode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
+                },
+                caption: {
+                    color: mode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
+                },
+            },
+        },
+        MuiInputBase: {
+            styleOverrides: {
+                root: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+                input: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+            },
+        },
+        MuiFormLabel: {
+            styleOverrides: {
+                root: {
+                    color: mode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+                },
+            },
+        },
+        MuiInputLabel: {
+            styleOverrides: {
+                root: {
+                    color: mode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+                },
+            },
+        },
+        MuiChip: {
+            styleOverrides: {
+                root: {
+                    fontFamily: "'Ubuntu', sans-serif",
+                },
+            },
+        },
+        MuiCard: {
+            styleOverrides: {
+                root: {
+                    background: mode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                    backdropFilter: 'blur(10px)',
+                    border: mode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+            },
+        },
+        MuiCardContent: {
+            styleOverrides: {
+                root: {
+                    color: mode ? '#ffffff' : '#1a1a1a',
+                },
+            },
+        },
+        MuiAlert: {
+            styleOverrides: {
+                root: {
+                    fontFamily: "'Ubuntu', sans-serif",
+                },
+            },
+        },
+        MuiTab: {
+            styleOverrides: {
+                root: {
+                    fontFamily: "'Ubuntu', sans-serif",
+                    color: mode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+                    '&.Mui-selected': {
+                        color: '#ff8c38',
+                    },
                 },
             },
         },

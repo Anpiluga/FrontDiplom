@@ -24,7 +24,7 @@ import {
     Add,
     LocalGasStation,
     DirectionsCar,
-    AttachMoney,
+    CurrencyRuble,
     CalendarToday,
     Speed,
     LocalAtm,
@@ -346,13 +346,13 @@ const FuelList = () => {
                                         <TableCell align="center">{entry.volume}</TableCell>
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <LocalAtm sx={{ mr: 1, color: '#ff8c38', fontSize: '1.2rem' }} />
+                                                <CurrencyRuble sx={{ mr: 1, color: '#ff8c38', fontSize: '1.2rem' }} />
                                                 <Typography>{entry.pricePerUnit} ₽</Typography>
                                             </Box>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <AttachMoney sx={{ mr: 1, color: '#4caf50', fontSize: '1.2rem' }} />
+                                                <CurrencyRuble sx={{ mr: 1, color: '#4caf50', fontSize: '1.2rem' }} />
                                                 <Typography sx={{ fontWeight: 'bold' }}>{entry.totalCost} ₽</Typography>
                                             </Box>
                                         </TableCell>

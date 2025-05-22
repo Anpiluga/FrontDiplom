@@ -24,7 +24,7 @@ import {
     Add,
     Assignment,
     DirectionsCar,
-    AttachMoney,
+    CurrencyRuble,
     CalendarToday,
     Speed,
 } from '@mui/icons-material';
@@ -325,7 +325,7 @@ const ServiceRecordList = () => {
                                         <TableCell align="center">
                                             {record.totalCost ? (
                                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <AttachMoney sx={{ mr: 1, color: '#4caf50', fontSize: '1.2rem' }} />
+                                                    <CurrencyRuble sx={{ mr: 1, color: '#4caf50', fontSize: '1.2rem' }} />
                                                     <Typography sx={{ fontWeight: 'bold' }}>{record.totalCost} ₽</Typography>
                                                 </Box>
                                             ) : (

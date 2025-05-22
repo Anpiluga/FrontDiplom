@@ -14,6 +14,11 @@ import ServiceRecordList from './pages/FR/components/ServiceRecordList';
 import ServiceRecordForm from './pages/FR/components/ServiceRecordForm';
 import ServiceTaskList from './pages/FR/components/ServiceTaskList';
 import ServiceTaskForm from './pages/FR/components/ServiceTaskForm';
+import AdditionalExpenseList from './pages/FR/components/AdditionalExpenseList';
+import AdditionalExpenseForm from './pages/FR/components/AdditionalExpenseForm';
+import SparePartList from './pages/FR/components/SparePartList';
+import SparePartForm from './pages/FR/components/SparePartForm';
+import Analytics from './pages/FR/components/Analytics';
 import Home from './pages/FR/components/Home';
 import ProtectedRoute from './pages/FR/components/ProtectedRoute';
 import { CssBaseline, Box } from '@mui/material';
@@ -44,9 +49,11 @@ function AppContent() {
     console.log('darkMode:', darkMode);
     const showSidebar = [
         '/home', '/cars', '/drivers', '/fuel', '/service-records', '/service-tasks',
+        '/additional-expenses', '/analytics', '/spare-parts',
         '/cars/add', '/cars/edit', '/cars/view', '/drivers/add', '/drivers/edit',
         '/fuel/add', '/fuel/edit', '/service-records/add', '/service-records/edit',
-        '/service-tasks/add', '/service-tasks/edit'
+        '/service-tasks/add', '/service-tasks/edit', '/additional-expenses/add',
+        '/additional-expenses/edit', '/spare-parts/add', '/spare-parts/edit'
     ].some(path => location.pathname.startsWith(path));
     console.log('showSidebar:', showSidebar);
     const theme = getTheme(darkMode !== undefined ? darkMode : true);
@@ -200,6 +207,31 @@ function AppContent() {
                                     </ProtectedRoute>
                                 }
                             />
+                            {/* Additional Expenses routes */}
+                            <Route
+                                path="/additional-expenses"
+                                element={
+                                    <ProtectedRoute>
+                                        <AdditionalExpenseList />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/additional-expenses/add"
+                                element={
+                                    <ProtectedRoute>
+                                        <AdditionalExpenseForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/additional-expenses/edit/:id"
+                                element={
+                                    <ProtectedRoute>
+                                        <AdditionalExpenseForm />
+                                    </ProtectedRoute>
+                                }
+                            />
                             {/* Service Record routes */}
                             <Route
                                 path="/service-records"
@@ -247,6 +279,40 @@ function AppContent() {
                                 element={
                                     <ProtectedRoute>
                                         <ServiceTaskForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            {/* Spare Parts routes */}
+                            <Route
+                                path="/spare-parts"
+                                element={
+                                    <ProtectedRoute>
+                                        <SparePartList />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/spare-parts/add"
+                                element={
+                                    <ProtectedRoute>
+                                        <SparePartForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/spare-parts/edit/:id"
+                                element={
+                                    <ProtectedRoute>
+                                        <SparePartForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            {/* Analytics route */}
+                            <Route
+                                path="/analytics"
+                                element={
+                                    <ProtectedRoute>
+                                        <Analytics />
                                     </ProtectedRoute>
                                 }
                             />
