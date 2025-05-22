@@ -45,8 +45,6 @@ function AppContent() {
     const navigate = useNavigate();
     const { darkMode, logout } = useContext(AuthContext);
 
-    console.log('Current path:', location.pathname);
-    console.log('darkMode:', darkMode);
     const showSidebar = [
         '/home', '/cars', '/drivers', '/fuel', '/service-records', '/service-tasks',
         '/additional-expenses', '/analytics', '/spare-parts',

@@ -21,27 +21,104 @@ const Home = () => {
     const [analyticsData, setAnalyticsData] = useState(null);
     const [monthlyData, setMonthlyData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
                 const token = localStorage.getItem('token');
-                if (!token) return;
+                if (!token) {
+                    console.log('No token found');
+                    setError('Необходима авторизация');
+                    setLoading(false);
+                    return;
+                }
+
+                console.log('Fetching analytics with token:', token.substring(0, 20) + '...');
 
                 // Получаем общую статистику
+                console.log('Fetching total expenses...');
                 const totalResponse = await axios.get('http://localhost:8080/admin/analytics/total-expenses', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
+
+                console.log('Total expenses response:', totalResponse.data);
 
                 // Получаем месячную статистику
+                console.log('Fetching monthly expenses...');
                 const monthlyResponse = await axios.get('http://localhost:8080/admin/analytics/monthly-expenses', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 });
 
-                setAnalyticsData(totalResponse.data);
-                setMonthlyData(monthlyResponse.data);
+                console.log('Monthly expenses response:', monthlyResponse.data);
+
+                // Проверяем полученные данные
+                if (totalResponse.data) {
+                    setAnalyticsData({
+                        totalCosts: totalResponse.data.totalCosts || 0,
+                        fuelCosts: totalResponse.data.fuelCosts || 0,
+                        serviceCosts: totalResponse.data.serviceCosts || 0,
+                        sparePartsCosts: totalResponse.data.sparePartsCosts || 0,
+                        additionalCosts: totalResponse.data.additionalCosts || 0,
+                        fuelPercentage: totalResponse.data.fuelPercentage || 0,
+                        servicePercentage: totalResponse.data.servicePercentage || 0,
+                        sparePartsPercentage: totalResponse.data.sparePartsPercentage || 0,
+                        additionalPercentage: totalResponse.data.additionalPercentage || 0,
+                    });
+                    console.log('Analytics data set successfully');
+                }
+
+                if (monthlyResponse.data) {
+                    setMonthlyData(monthlyResponse.data);
+                    console.log('Monthly data set successfully');
+                }
+
+                setError(null); // Очищаем ошибки при успешной загрузке
             } catch (error) {
                 console.error('Error fetching analytics:', error);
+                console.error('Error response:', error.response?.data);
+                console.error('Error status:', error.response?.status);
+
+                if (error.response?.status === 401) {
+                    setError('Ошибка авторизации. Пожалуйста, войдите в систему заново.');
+                    // Можно добавить редирект на логин
+                    // navigate('/login');
+                } else if (error.response?.status === 403) {
+                    setError('Нет прав доступа к аналитике');
+                } else if (error.response?.status === 404) {
+                    setError('API аналитики не найден');
+                } else if (error.request) {
+                    setError('Нет ответа от сервера. Проверьте подключение.');
+                } else {
+                    setError('Ошибка при загрузке данных');
+                }
+
+                // Устанавливаем дефолтные значения
+                setAnalyticsData({
+                    totalCosts: 0,
+                    fuelCosts: 0,
+                    serviceCosts: 0,
+                    sparePartsCosts: 0,
+                    additionalCosts: 0,
+                    fuelPercentage: 0,
+                    servicePercentage: 0,
+                    sparePartsPercentage: 0,
+                    additionalPercentage: 0,
+                });
+                setMonthlyData({
+                    months: [],
+                    totalExpenses: [],
+                    fuelExpenses: [],
+                    serviceExpenses: [],
+                    sparePartsExpenses: [],
+                    additionalExpenses: []
+                });
             } finally {
                 setLoading(false);
             }
@@ -53,6 +130,9 @@ const Home = () => {
     const COLORS = ['#ff8c38', '#76ff7a', '#2196f3', '#ff6b6b'];
 
     const formatCurrency = (value) => {
+        if (value === null || value === undefined || isNaN(value)) {
+            return '0 ₽';
+        }
         return new Intl.NumberFormat('ru-RU', {
             style: 'currency',
             currency: 'RUB',
@@ -83,39 +163,44 @@ const Home = () => {
         return null;
     };
 
-    const pieData = analyticsData ? [
+    const pieData = analyticsData && analyticsData.totalCosts > 0 ? [
         { name: 'Топливо', value: analyticsData.fuelCosts, percentage: analyticsData.fuelPercentage },
         { name: 'Сервис', value: analyticsData.serviceCosts, percentage: analyticsData.servicePercentage },
         { name: 'Запчасти', value: analyticsData.sparePartsCosts, percentage: analyticsData.sparePartsPercentage },
         { name: 'Доп расходы', value: analyticsData.additionalCosts, percentage: analyticsData.additionalPercentage },
-    ] : [];
+    ].filter(item => item.value > 0) : [];
 
-    const monthlyChartData = monthlyData ? monthlyData.months.map((month, index) => ({
-        month,
-        total: monthlyData.totalExpenses[index],
-        fuel: monthlyData.fuelExpenses[index],
-        service: monthlyData.serviceExpenses[index],
-        spareParts: monthlyData.sparePartsExpenses[index],
-        additional: monthlyData.additionalExpenses[index],
-    })) : [];
+    const monthlyChartData = monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
+        monthlyData.months.map((month, index) => ({
+            month,
+            total: monthlyData.totalExpenses?.[index] || 0,
+            fuel: monthlyData.fuelExpenses?.[index] || 0,
+            service: monthlyData.serviceExpenses?.[index] || 0,
+            spareParts: monthlyData.sparePartsExpenses?.[index] || 0,
+            additional: monthlyData.additionalExpenses?.[index] || 0,
+        })) : [];
 
     const categoryChartData = {
-        fuel: monthlyData ? monthlyData.months.map((month, index) => ({
-            month,
-            value: monthlyData.fuelExpenses[index]
-        })) : [],
-        service: monthlyData ? monthlyData.months.map((month, index) => ({
-            month,
-            value: monthlyData.serviceExpenses[index]
-        })) : [],
-        spareParts: monthlyData ? monthlyData.months.map((month, index) => ({
-            month,
-            value: monthlyData.sparePartsExpenses[index]
-        })) : [],
-        additional: monthlyData ? monthlyData.months.map((month, index) => ({
-            month,
-            value: monthlyData.additionalExpenses[index]
-        })) : []
+        fuel: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
+            monthlyData.months.map((month, index) => ({
+                month,
+                value: monthlyData.fuelExpenses?.[index] || 0
+            })) : [],
+        service: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
+            monthlyData.months.map((month, index) => ({
+                month,
+                value: monthlyData.serviceExpenses?.[index] || 0
+            })) : [],
+        spareParts: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
+            monthlyData.months.map((month, index) => ({
+                month,
+                value: monthlyData.sparePartsExpenses?.[index] || 0
+            })) : [],
+        additional: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
+            monthlyData.months.map((month, index) => ({
+                month,
+                value: monthlyData.additionalExpenses?.[index] || 0
+            })) : []
     };
 
     if (loading) {
@@ -218,6 +303,25 @@ const Home = () => {
                     height: '3px'
                 }} />
 
+                {/* Отображение ошибки */}
+                {error && (
+                    <Paper sx={{
+                        p: 4,
+                        mb: 6,
+                        textAlign: 'center',
+                        background: 'rgba(211, 47, 47, 0.1)',
+                        border: '1px solid rgba(211, 47, 47, 0.3)',
+                        borderRadius: '16px'
+                    }}>
+                        <Typography variant="h6" sx={{ color: '#ff6f60', mb: 2 }}>
+                            Ошибка загрузки данных
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: '#ff6f60' }}>
+                            {error}
+                        </Typography>
+                    </Paper>
+                )}
+
                 {/* Секция аналитики */}
                 <Box sx={{ mb: 8 }}>
                     <Typography
@@ -256,161 +360,194 @@ const Home = () => {
                     )}
 
                     {/* Основной график общих затрат по месяцам - на всю ширину */}
-                    <Paper sx={{
-                        p: 4,
-                        mb: 8,
-                        borderRadius: '16px',
-                        background: 'rgba(44, 27, 71, 0.9)',
-                        border: '1px solid rgba(255, 140, 56, 0.3)'
-                    }}>
-                        <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                            Общие затраты по месяцам
-                        </Typography>
-                        <ResponsiveContainer width="100%" height={450}>
-                            <BarChart data={monthlyChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                <XAxis dataKey="month" stroke="#fff" fontSize={14} />
-                                <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={12} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend />
-                                <Bar dataKey="total" fill="#ff8c38" name="Общие затраты" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </Paper>
-
-                    {/* Круговая диаграмма - отдельно */}
-                    <Paper sx={{
-                        p: 4,
-                        mb: 8,
-                        borderRadius: '16px',
-                        background: 'rgba(44, 27, 71, 0.9)',
-                        border: '1px solid rgba(255, 140, 56, 0.3)',
-                        maxWidth: '800px',
-                        mx: 'auto'
-                    }}>
-                        <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                            Структура затрат
-                        </Typography>
-                        <ResponsiveContainer width="100%" height={500}>
-                            <PieChart>
-                                <Pie
-                                    data={pieData}
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius={150}
-                                    fill="#8884d8"
-                                    dataKey="value"
-                                    label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
-                                    labelLine={false}
-                                    fontSize={14}
-                                >
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(value) => formatCurrency(value)} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </Paper>
-
-                    {/* Графики по категориям - каждый отдельно */}
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {/* Затраты на топливо */}
+                    {monthlyChartData.length > 0 && (
                         <Paper sx={{
                             p: 4,
+                            mb: 8,
                             borderRadius: '16px',
                             background: 'rgba(44, 27, 71, 0.9)',
                             border: '1px solid rgba(255, 140, 56, 0.3)'
                         }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
-                                <LocalGasStation sx={{ mr: 2, color: '#ff8c38', fontSize: 32 }} />
-                                <Typography variant="h5" sx={{ color: '#ff8c38', fontWeight: 'bold' }}>
-                                    Затраты на топливо
-                                </Typography>
-                            </Box>
-                            <ResponsiveContainer width="100%" height={350}>
-                                <BarChart data={categoryChartData.fuel} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                            <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                Общие затраты по месяцам
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={450}>
+                                <BarChart data={monthlyChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
+                                    <XAxis dataKey="month" stroke="#fff" fontSize={14} />
+                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={12} />
                                     <Tooltip content={<CustomTooltip />} />
-                                    <Bar dataKey="value" fill="#ff8c38" name="Топливо" radius={[4, 4, 0, 0]} />
+                                    <Legend />
+                                    <Bar dataKey="total" fill="#ff8c38" name="Общие затраты" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </Paper>
+                    )}
 
-                        {/* Затраты на сервис */}
+                    {/* Круговая диаграмма - отдельно */}
+                    {pieData.length > 0 && (
                         <Paper sx={{
                             p: 4,
+                            mb: 8,
                             borderRadius: '16px',
                             background: 'rgba(44, 27, 71, 0.9)',
-                            border: '1px solid rgba(118, 255, 122, 0.3)'
+                            border: '1px solid rgba(255, 140, 56, 0.3)',
+                            maxWidth: '800px',
+                            mx: 'auto'
                         }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
-                                <Build sx={{ mr: 2, color: '#76ff7a', fontSize: 32 }} />
-                                <Typography variant="h5" sx={{ color: '#76ff7a', fontWeight: 'bold' }}>
-                                    Затраты на сервис
-                                </Typography>
-                            </Box>
-                            <ResponsiveContainer width="100%" height={350}>
-                                <BarChart data={categoryChartData.service} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
-                                    <Tooltip content={<CustomTooltip />} />
-                                    <Bar dataKey="value" fill="#76ff7a" name="Сервис" radius={[4, 4, 0, 0]} />
-                                </BarChart>
+                            <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                Структура затрат
+                            </Typography>
+                            <ResponsiveContainer width="100%" height={500}>
+                                <PieChart>
+                                    <Pie
+                                        data={pieData}
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={150}
+                                        fill="#8884d8"
+                                        dataKey="value"
+                                        label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                                        labelLine={false}
+                                        fontSize={14}
+                                    >
+                                        {pieData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                                </PieChart>
                             </ResponsiveContainer>
                         </Paper>
+                    )}
 
-                        {/* Затраты на запчасти */}
-                        <Paper sx={{
-                            p: 4,
-                            borderRadius: '16px',
-                            background: 'rgba(44, 27, 71, 0.9)',
-                            border: '1px solid rgba(33, 150, 243, 0.3)'
-                        }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
-                                <Inventory sx={{ mr: 2, color: '#2196f3', fontSize: 32 }} />
-                                <Typography variant="h5" sx={{ color: '#2196f3', fontWeight: 'bold' }}>
-                                    Затраты на запчасти
-                                </Typography>
-                            </Box>
-                            <ResponsiveContainer width="100%" height={350}>
-                                <BarChart data={categoryChartData.spareParts} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
-                                    <Tooltip content={<CustomTooltip />} />
-                                    <Bar dataKey="value" fill="#2196f3" name="Запчасти" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </Paper>
+                    {/* Графики по категориям - каждый отдельно */}
+                    {(categoryChartData.fuel.length > 0 || categoryChartData.service.length > 0 ||
+                        categoryChartData.spareParts.length > 0 || categoryChartData.additional.length > 0) && (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {/* Затраты на топливо */}
+                            {categoryChartData.fuel.length > 0 && categoryChartData.fuel.some(item => item.value > 0) && (
+                                <Paper sx={{
+                                    p: 4,
+                                    borderRadius: '16px',
+                                    background: 'rgba(44, 27, 71, 0.9)',
+                                    border: '1px solid rgba(255, 140, 56, 0.3)'
+                                }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
+                                        <LocalGasStation sx={{ mr: 2, color: '#ff8c38', fontSize: 32 }} />
+                                        <Typography variant="h5" sx={{ color: '#ff8c38', fontWeight: 'bold' }}>
+                                            Затраты на топливо
+                                        </Typography>
+                                    </Box>
+                                    <ResponsiveContainer width="100%" height={350}>
+                                        <BarChart data={categoryChartData.fuel} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="month" stroke="#fff" fontSize={12} />
+                                            <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Bar dataKey="value" fill="#ff8c38" name="Топливо" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </Paper>
+                            )}
 
-                        {/* Дополнительные расходы */}
+                            {/* Затраты на сервис */}
+                            {categoryChartData.service.length > 0 && categoryChartData.service.some(item => item.value > 0) && (
+                                <Paper sx={{
+                                    p: 4,
+                                    borderRadius: '16px',
+                                    background: 'rgba(44, 27, 71, 0.9)',
+                                    border: '1px solid rgba(118, 255, 122, 0.3)'
+                                }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
+                                        <Build sx={{ mr: 2, color: '#76ff7a', fontSize: 32 }} />
+                                        <Typography variant="h5" sx={{ color: '#76ff7a', fontWeight: 'bold' }}>
+                                            Затраты на сервис
+                                        </Typography>
+                                    </Box>
+                                    <ResponsiveContainer width="100%" height={350}>
+                                        <BarChart data={categoryChartData.service} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="month" stroke="#fff" fontSize={12} />
+                                            <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Bar dataKey="value" fill="#76ff7a" name="Сервис" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </Paper>
+                            )}
+
+                            {/* Затраты на запчасти */}
+                            {categoryChartData.spareParts.length > 0 && categoryChartData.spareParts.some(item => item.value > 0) && (
+                                <Paper sx={{
+                                    p: 4,
+                                    borderRadius: '16px',
+                                    background: 'rgba(44, 27, 71, 0.9)',
+                                    border: '1px solid rgba(33, 150, 243, 0.3)'
+                                }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
+                                        <Inventory sx={{ mr: 2, color: '#2196f3', fontSize: 32 }} />
+                                        <Typography variant="h5" sx={{ color: '#2196f3', fontWeight: 'bold' }}>
+                                            Затраты на запчасти
+                                        </Typography>
+                                    </Box>
+                                    <ResponsiveContainer width="100%" height={350}>
+                                        <BarChart data={categoryChartData.spareParts} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="month" stroke="#fff" fontSize={12} />
+                                            <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Bar dataKey="value" fill="#2196f3" name="Запчасти" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </Paper>
+                            )}
+
+                            {/* Дополнительные расходы */}
+                            {categoryChartData.additional.length > 0 && categoryChartData.additional.some(item => item.value > 0) && (
+                                <Paper sx={{
+                                    p: 4,
+                                    borderRadius: '16px',
+                                    background: 'rgba(44, 27, 71, 0.9)',
+                                    border: '1px solid rgba(255, 107, 107, 0.3)'
+                                }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
+                                        <AttachMoney sx={{ mr: 2, color: '#ff6b6b', fontSize: 32 }} />
+                                        <Typography variant="h5" sx={{ color: '#ff6b6b', fontWeight: 'bold' }}>
+                                            Дополнительные расходы
+                                        </Typography>
+                                    </Box>
+                                    <ResponsiveContainer width="100%" height={350}>
+                                        <BarChart data={categoryChartData.additional} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="month" stroke="#fff" fontSize={12} />
+                                            <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Bar dataKey="value" fill="#ff6b6b" name="Доп расходы" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </Paper>
+                            )}
+                        </Box>
+                    )}
+
+                    {/* Сообщение, если нет данных */}
+                    {(!analyticsData || analyticsData.totalCosts === 0) && !error && (
                         <Paper sx={{
-                            p: 4,
-                            borderRadius: '16px',
+                            p: 6,
+                            textAlign: 'center',
                             background: 'rgba(44, 27, 71, 0.9)',
-                            border: '1px solid rgba(255, 107, 107, 0.3)'
+                            border: '1px solid rgba(255, 140, 56, 0.3)',
+                            borderRadius: '16px'
                         }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, justifyContent: 'center' }}>
-                                <AttachMoney sx={{ mr: 2, color: '#ff6b6b', fontSize: 32 }} />
-                                <Typography variant="h5" sx={{ color: '#ff6b6b', fontWeight: 'bold' }}>
-                                    Дополнительные расходы
-                                </Typography>
-                            </Box>
-                            <ResponsiveContainer width="100%" height={350}>
-                                <BarChart data={categoryChartData.additional} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                    <XAxis dataKey="month" stroke="#fff" fontSize={12} />
-                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={11} />
-                                    <Tooltip content={<CustomTooltip />} />
-                                    <Bar dataKey="value" fill="#ff6b6b" name="Доп расходы" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            <Typography variant="h5" sx={{ color: '#ff8c38', mb: 2 }}>
+                                Нет данных для отображения
+                            </Typography>
+                            <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+                                Начните добавлять расходы, чтобы увидеть статистику
+                            </Typography>
                         </Paper>
-                    </Box>
+                    )}
                 </Box>
             </motion.div>
         </Container>

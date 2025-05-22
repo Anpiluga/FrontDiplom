@@ -73,9 +73,9 @@ const Sidebar = () => {
                         whileTap={{ scale: 0.95 }}
                     >
                         <ListItem
-                            button
                             onClick={() => navigate('/home')}
                             sx={{
+                                cursor: 'pointer',
                                 minHeight: '70px',
                                 padding: '16px 24px',
                                 margin: '8px 16px',
@@ -114,9 +114,9 @@ const Sidebar = () => {
                         whileTap={{ scale: 0.95 }}
                     >
                         <ListItem
-                            button
                             onClick={handleFleetClick}
                             sx={{
+                                cursor: 'pointer',
                                 minHeight: '70px',
                                 padding: '16px 24px',
                                 margin: '8px 16px',
@@ -215,9 +215,9 @@ const Sidebar = () => {
                         whileTap={{ scale: 0.95 }}
                     >
                         <ListItem
-                            button
                             onClick={handleExpensesClick}
                             sx={{
+                                cursor: 'pointer',
                                 minHeight: '70px',
                                 padding: '16px 24px',
                                 margin: '8px 16px',
@@ -316,9 +316,9 @@ const Sidebar = () => {
                         whileTap={{ scale: 0.95 }}
                     >
                         <ListItem
-                            button
                             onClick={handleServiceClick}
                             sx={{
+                                cursor: 'pointer',
                                 minHeight: '70px',
                                 padding: '16px 24px',
                                 margin: '8px 16px',
@@ -417,9 +417,9 @@ const Sidebar = () => {
                         whileTap={{ scale: 0.95 }}
                     >
                         <ListItem
-                            button
                             onClick={() => navigate('/analytics')}
                             sx={{
+                                cursor: 'pointer',
                                 minHeight: '70px',
                                 padding: '16px 24px',
                                 margin: '8px 16px',
@@ -458,9 +458,9 @@ const Sidebar = () => {
                         whileTap={{ scale: 0.95 }}
                     >
                         <ListItem
-                            button
                             onClick={handleWarehouseClick}
                             sx={{
+                                cursor: 'pointer',
                                 minHeight: '70px',
                                 padding: '16px 24px',
                                 margin: '8px 16px',
@@ -528,4 +528,4 @@ const Sidebar = () => {
     );
 };
 
-export default Sidebar;
+export default Sidebar
