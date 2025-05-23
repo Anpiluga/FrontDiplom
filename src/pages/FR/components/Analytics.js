@@ -54,7 +54,7 @@ const Analytics = () => {
     const [monthlyData, setMonthlyData] = useState(null);
     const [carExpenses, setCarExpenses] = useState(null);
     const [costPerKm, setCostPerKm] = useState(null);
-    const [cars, setCars] = useState([]);
+    const [cars, setCars] = useState([]); // Инициализируем пустым массивом
     const [selectedCar, setSelectedCar] = useState('');
     const [monthsBack, setMonthsBack] = useState(6);
     const [loading, setLoading] = useState(true);
@@ -83,12 +83,20 @@ const Analytics = () => {
                 return;
             }
 
+            console.log('Fetching cars for analytics...');
             const response = await axios.get('http://localhost:8080/admin/cars', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
-            setCars(response.data || []);
+
+            console.log('Cars response:', response.data);
+            // Убеждаемся, что устанавливаем массив
+            setCars(Array.isArray(response.data) ? response.data : []);
         } catch (err) {
             console.error('Error fetching cars:', err);
+            setCars([]); // Устанавливаем пустой массив в случае ошибки
         }
     };
 
@@ -102,21 +110,39 @@ const Analytics = () => {
                 return;
             }
 
+            console.log('Fetching analytics data...');
+
             // Получаем общую статистику
             const totalResponse = await axios.get('http://localhost:8080/admin/analytics/total-expenses', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
+
+            console.log('Total expenses response:', totalResponse.data);
 
             // Получаем месячную статистику
             const monthlyResponse = await axios.get(`http://localhost:8080/admin/analytics/monthly-expenses?monthsBack=${monthsBack}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
+
+            console.log('Monthly expenses response:', monthlyResponse.data);
 
             setTotalData(totalResponse.data);
             setMonthlyData(monthlyResponse.data);
+            setError(''); // Очищаем ошибки при успешной загрузке
         } catch (err) {
             console.error('Error fetching analytics:', err);
-            setError('Ошибка при загрузке аналитики');
+            if (err.response?.status === 401 || err.response?.status === 403) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему заново.');
+                navigate('/login');
+            } else {
+                setError('Ошибка при загрузке аналитики');
+            }
         } finally {
             setLoading(false);
         }
@@ -128,15 +154,27 @@ const Analytics = () => {
         try {
             const token = localStorage.getItem('token');
 
+            console.log('Fetching car analytics for car:', selectedCar);
+
             // Получаем расходы по автомобилю
             const expensesResponse = await axios.get(`http://localhost:8080/admin/analytics/car/${selectedCar}/expenses`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
+
+            console.log('Car expenses response:', expensesResponse.data);
 
             // Получаем стоимость километра
             const costPerKmResponse = await axios.get(`http://localhost:8080/admin/analytics/car/${selectedCar}/cost-per-km`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
+
+            console.log('Cost per km response:', costPerKmResponse.data);
 
             setCarExpenses(expensesResponse.data);
             setCostPerKm(costPerKmResponse.data);
@@ -147,6 +185,9 @@ const Analytics = () => {
     };
 
     const formatCurrency = (value) => {
+        if (value === null || value === undefined || isNaN(value)) {
+            return '0 ₽';
+        }
         return new Intl.NumberFormat('ru-RU', {
             style: 'currency',
             currency: 'RUB',
@@ -177,27 +218,36 @@ const Analytics = () => {
         return null;
     };
 
-    const pieData = totalData ? [
-        { name: 'Топливо', value: totalData.fuelCosts, percentage: totalData.fuelPercentage },
-        { name: 'Сервис', value: totalData.serviceCosts, percentage: totalData.servicePercentage },
-        { name: 'Запчасти', value: totalData.sparePartsCosts, percentage: totalData.sparePartsPercentage },
-        { name: 'Доп расходы', value: totalData.additionalCosts, percentage: totalData.additionalPercentage },
+    // Безопасное создание данных для круговой диаграммы
+    const pieData = totalData && totalData.totalCosts > 0 ? [
+        { name: 'Топливо', value: totalData.fuelCosts || 0, percentage: totalData.fuelPercentage || 0 },
+        { name: 'Сервис', value: totalData.serviceCosts || 0, percentage: totalData.servicePercentage || 0 },
+        { name: 'Запчасти', value: totalData.sparePartsCosts || 0, percentage: totalData.sparePartsPercentage || 0 },
+        { name: 'Доп расходы', value: totalData.additionalCosts || 0, percentage: totalData.additionalPercentage || 0 },
     ].filter(item => item.value > 0) : [];
 
-    const monthlyChartData = monthlyData ? monthlyData.months.map((month, index) => ({
-        month,
-        total: monthlyData.totalExpenses[index],
-        fuel: monthlyData.fuelExpenses[index],
-        service: monthlyData.serviceExpenses[index],
-        spareParts: monthlyData.sparePartsExpenses[index],
-        additional: monthlyData.additionalExpenses[index],
-    })) : [];
+    // Безопасное создание данных для месячного графика
+    const monthlyChartData = React.useMemo(() => {
+        if (!monthlyData || !monthlyData.months || !Array.isArray(monthlyData.months)) {
+            return [];
+        }
 
-    const carPieData = carExpenses ? [
-        { name: 'Топливо', value: carExpenses.fuelCosts, percentage: carExpenses.fuelPercentage },
-        { name: 'Сервис', value: carExpenses.serviceCosts, percentage: carExpenses.servicePercentage },
-        { name: 'Запчасти', value: carExpenses.sparePartsCosts, percentage: carExpenses.sparePartsPercentage },
-        { name: 'Доп расходы', value: carExpenses.additionalCosts, percentage: carExpenses.additionalPercentage },
+        return monthlyData.months.map((month, index) => ({
+            month,
+            total: (monthlyData.totalExpenses && monthlyData.totalExpenses[index]) || 0,
+            fuel: (monthlyData.fuelExpenses && monthlyData.fuelExpenses[index]) || 0,
+            service: (monthlyData.serviceExpenses && monthlyData.serviceExpenses[index]) || 0,
+            spareParts: (monthlyData.sparePartsExpenses && monthlyData.sparePartsExpenses[index]) || 0,
+            additional: (monthlyData.additionalExpenses && monthlyData.additionalExpenses[index]) || 0,
+        }));
+    }, [monthlyData]);
+
+    // Безопасное создание данных для круговой диаграммы автомобиля
+    const carPieData = carExpenses && carExpenses.totalCosts > 0 ? [
+        { name: 'Топливо', value: carExpenses.fuelCosts || 0, percentage: carExpenses.fuelPercentage || 0 },
+        { name: 'Сервис', value: carExpenses.serviceCosts || 0, percentage: carExpenses.servicePercentage || 0 },
+        { name: 'Запчасти', value: carExpenses.sparePartsCosts || 0, percentage: carExpenses.sparePartsPercentage || 0 },
+        { name: 'Доп расходы', value: carExpenses.additionalCosts || 0, percentage: carExpenses.additionalPercentage || 0 },
     ].filter(item => item.value > 0) : [];
 
     const handleTabChange = (event, newValue) => {
@@ -314,7 +364,7 @@ const Analytics = () => {
                                             <TrendingUp sx={{ fontSize: 40, color: '#ff8c38', mb: 2 }} />
                                             <Typography variant="h6" sx={{ color: '#ff8c38', mb: 1 }}>Общие затраты</Typography>
                                             <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#76ff7a' }}>
-                                                {formatCurrency(totalData.totalCosts)}
+                                                {formatCurrency(totalData.totalCosts || 0)}
                                             </Typography>
                                         </CardContent>
                                     </Card>
@@ -325,10 +375,10 @@ const Analytics = () => {
                                             <LocalGasStation sx={{ fontSize: 40, color: '#ff8c38', mb: 2 }} />
                                             <Typography variant="h6" sx={{ color: '#ff8c38', mb: 1 }}>Топливо</Typography>
                                             <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
-                                                {formatCurrency(totalData.fuelCosts)}
+                                                {formatCurrency(totalData.fuelCosts || 0)}
                                             </Typography>
                                             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                                {totalData.fuelPercentage.toFixed(1)}%
+                                                {(totalData.fuelPercentage || 0).toFixed(1)}%
                                             </Typography>
                                         </CardContent>
                                     </Card>
@@ -339,10 +389,10 @@ const Analytics = () => {
                                             <Build sx={{ fontSize: 40, color: '#76ff7a', mb: 2 }} />
                                             <Typography variant="h6" sx={{ color: '#76ff7a', mb: 1 }}>Сервис</Typography>
                                             <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
-                                                {formatCurrency(totalData.serviceCosts)}
+                                                {formatCurrency(totalData.serviceCosts || 0)}
                                             </Typography>
                                             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                                {totalData.servicePercentage.toFixed(1)}%
+                                                {(totalData.servicePercentage || 0).toFixed(1)}%
                                             </Typography>
                                         </CardContent>
                                     </Card>
@@ -353,10 +403,10 @@ const Analytics = () => {
                                             <Inventory sx={{ fontSize: 40, color: '#2196f3', mb: 2 }} />
                                             <Typography variant="h6" sx={{ color: '#2196f3', mb: 1 }}>Запчасти</Typography>
                                             <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
-                                                {formatCurrency(totalData.sparePartsCosts)}
+                                                {formatCurrency(totalData.sparePartsCosts || 0)}
                                             </Typography>
                                             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                                {totalData.sparePartsPercentage.toFixed(1)}%
+                                                {(totalData.sparePartsPercentage || 0).toFixed(1)}%
                                             </Typography>
                                         </CardContent>
                                     </Card>
@@ -364,68 +414,92 @@ const Analytics = () => {
                             </Grid>
                         )}
 
-                        {/* Основной график месячной статистики - на всю ширину */}
-                        <Paper sx={{ p: 4, mb: 8, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)' }}>
-                            <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                                Расходы по месяцам
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={450}>
-                                <BarChart data={monthlyChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                    <XAxis dataKey="month" stroke="#fff" fontSize={14} />
-                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={12} />
-                                    <Tooltip content={<CustomTooltip />} />
-                                    <Legend />
-                                    <Bar dataKey="fuel" stackId="a" fill="#ff8c38" name="Топливо" radius={[0, 0, 0, 0]} />
-                                    <Bar dataKey="service" stackId="a" fill="#76ff7a" name="Сервис" radius={[0, 0, 0, 0]} />
-                                    <Bar dataKey="spareParts" stackId="a" fill="#2196f3" name="Запчасти" radius={[0, 0, 0, 0]} />
-                                    <Bar dataKey="additional" stackId="a" fill="#ff6b6b" name="Доп расходы" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </Paper>
+                        {/* Основной график месячной статистики */}
+                        {monthlyChartData.length > 0 && (
+                            <Paper sx={{ p: 4, mb: 8, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)' }}>
+                                <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                    Расходы по месяцам
+                                </Typography>
+                                <ResponsiveContainer width="100%" height={450}>
+                                    <BarChart data={monthlyChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                        <XAxis dataKey="month" stroke="#fff" fontSize={14} />
+                                        <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={12} />
+                                        <Tooltip content={<CustomTooltip />} />
+                                        <Legend />
+                                        <Bar dataKey="fuel" stackId="a" fill="#ff8c38" name="Топливо" radius={[0, 0, 0, 0]} />
+                                        <Bar dataKey="service" stackId="a" fill="#76ff7a" name="Сервис" radius={[0, 0, 0, 0]} />
+                                        <Bar dataKey="spareParts" stackId="a" fill="#2196f3" name="Запчасти" radius={[0, 0, 0, 0]} />
+                                        <Bar dataKey="additional" stackId="a" fill="#ff6b6b" name="Доп расходы" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </Paper>
+                        )}
 
                         {/* Круговая диаграмма */}
-                        <Paper sx={{ p: 4, mb: 8, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)', maxWidth: '800px', mx: 'auto' }}>
-                            <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                                Структура затрат
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={500}>
-                                <PieChart>
-                                    <Pie
-                                        data={pieData}
-                                        cx="50%"
-                                        cy="50%"
-                                        outerRadius={150}
-                                        fill="#8884d8"
-                                        dataKey="value"
-                                        label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
-                                        labelLine={false}
-                                        fontSize={14}
-                                    >
-                                        {pieData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip formatter={(value) => formatCurrency(value)} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </Paper>
+                        {pieData.length > 0 && (
+                            <Paper sx={{ p: 4, mb: 8, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)', maxWidth: '800px', mx: 'auto' }}>
+                                <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                    Структура затрат
+                                </Typography>
+                                <ResponsiveContainer width="100%" height={500}>
+                                    <PieChart>
+                                        <Pie
+                                            data={pieData}
+                                            cx="50%"
+                                            cy="50%"
+                                            outerRadius={150}
+                                            fill="#8884d8"
+                                            dataKey="value"
+                                            label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                                            labelLine={false}
+                                            fontSize={14}
+                                        >
+                                            {pieData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </Paper>
+                        )}
 
                         {/* Линейный график общих расходов */}
-                        <Paper sx={{ p: 4, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)' }}>
-                            <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                                Тренд общих расходов
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={400}>
-                                <AreaChart data={monthlyChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                    <XAxis dataKey="month" stroke="#fff" fontSize={14} />
-                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={12} />
-                                    <Tooltip content={<CustomTooltip />} />
-                                    <Area type="monotone" dataKey="total" stroke="#ff8c38" fill="rgba(255, 140, 56, 0.3)" strokeWidth={3} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </Paper>
+                        {monthlyChartData.length > 0 && (
+                            <Paper sx={{ p: 4, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)' }}>
+                                <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                    Тренд общих расходов
+                                </Typography>
+                                <ResponsiveContainer width="100%" height={400}>
+                                    <AreaChart data={monthlyChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                        <XAxis dataKey="month" stroke="#fff" fontSize={14} />
+                                        <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={12} />
+                                        <Tooltip content={<CustomTooltip />} />
+                                        <Area type="monotone" dataKey="total" stroke="#ff8c38" fill="rgba(255, 140, 56, 0.3)" strokeWidth={3} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </Paper>
+                        )}
+
+                        {/* Сообщение, если нет данных */}
+                        {(!totalData || (totalData.totalCosts === 0)) && (
+                            <Paper sx={{
+                                p: 6,
+                                textAlign: 'center',
+                                background: 'rgba(44, 27, 71, 0.9)',
+                                border: '1px solid rgba(255, 140, 56, 0.3)',
+                                borderRadius: '16px'
+                            }}>
+                                <Typography variant="h5" sx={{ color: '#ff8c38', mb: 2 }}>
+                                    Нет данных для отображения
+                                </Typography>
+                                <Typography variant="body1" sx={{ color: 'text.secondary' }}>
+                                    Начните добавлять расходы, чтобы увидеть статистику
+                                </Typography>
+                            </Paper>
+                        )}
                     </Box>
                 )}
 
@@ -444,7 +518,7 @@ const Analytics = () => {
                                     onChange={(e) => setSelectedCar(e.target.value)}
                                     label="Автомобиль"
                                 >
-                                    {cars.map((car) => (
+                                    {Array.isArray(cars) && cars.map((car) => (
                                         <MenuItem key={car.id} value={car.id}>
                                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                                 <DirectionsCar sx={{ mr: 1, color: '#ff8c38' }} />
@@ -466,7 +540,7 @@ const Analytics = () => {
                                                 <TrendingUp sx={{ fontSize: 40, color: '#ff8c38', mb: 2 }} />
                                                 <Typography variant="h6" sx={{ color: '#ff8c38', mb: 1 }}>Общие затраты</Typography>
                                                 <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#76ff7a' }}>
-                                                    {formatCurrency(carExpenses.totalCosts)}
+                                                    {formatCurrency(carExpenses.totalCosts || 0)}
                                                 </Typography>
                                             </CardContent>
                                         </Card>
@@ -477,7 +551,7 @@ const Analytics = () => {
                                                 <LocalGasStation sx={{ fontSize: 40, color: '#ff8c38', mb: 2 }} />
                                                 <Typography variant="h6" sx={{ color: '#ff8c38', mb: 1 }}>Топливо</Typography>
                                                 <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-                                                    {formatCurrency(carExpenses.fuelCosts)}
+                                                    {formatCurrency(carExpenses.fuelCosts || 0)}
                                                 </Typography>
                                             </CardContent>
                                         </Card>
@@ -486,23 +560,10 @@ const Analytics = () => {
                                         <Grid item xs={12} sm={6} md={3}>
                                             <Card sx={{ background: 'linear-gradient(45deg, rgba(33, 150, 243, 0.1), rgba(33, 150, 243, 0.2))', border: '1px solid #2196f3', borderRadius: '16px' }}>
                                                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                                                    <Speed sx={{ fontSize: 40, color: '#2196f3', mb: 2 }} />
-                                                    <Typography variant="h6" sx={{ color: '#2196f3', mb: 1 }}>Стоимость 1 км пути</Typography>
-                                                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-                                                        {formatCurrency(costPerKm.costPerKm)}
-                                                    </Typography>
-                                                </CardContent>
-                                            </Card>
-                                        </Grid>
-                                    )}
-                                    {costPerKm && !costPerKm.error && (
-                                        <Grid item xs={12} sm={6} md={3}>
-                                            <Card sx={{ background: 'linear-gradient(45deg, rgba(156, 39, 176, 0.1), rgba(156, 39, 176, 0.2))', border: '1px solid #9c27b0', borderRadius: '16px' }}>
-                                                <CardContent sx={{ textAlign: 'center', py: 3 }}>
                                                     <Speed sx={{ fontSize: 40, color: '#9c27b0', mb: 2 }} />
                                                     <Typography variant="h6" sx={{ color: '#9c27b0', mb: 1 }}>Пробег</Typography>
                                                     <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-                                                        {costPerKm.currentOdometer} км
+                                                        {costPerKm.currentOdometer || 0} км
                                                     </Typography>
                                                 </CardContent>
                                             </Card>
@@ -531,31 +592,33 @@ const Analytics = () => {
                                 </Paper>
 
                                 {/* Круговая диаграмма автомобиля */}
-                                <Paper sx={{ p: 4, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)', maxWidth: '800px', mx: 'auto' }}>
-                                    <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                                        Распределение затрат
-                                    </Typography>
-                                    <ResponsiveContainer width="100%" height={500}>
-                                        <PieChart>
-                                            <Pie
-                                                data={carPieData}
-                                                cx="50%"
-                                                cy="50%"
-                                                outerRadius={150}
-                                                fill="#8884d8"
-                                                dataKey="value"
-                                                label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
-                                                labelLine={false}
-                                                fontSize={14}
-                                            >
-                                                {carPieData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip formatter={(value) => formatCurrency(value)} />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </Paper>
+                                {carPieData.length > 0 && (
+                                    <Paper sx={{ p: 4, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)', maxWidth: '800px', mx: 'auto' }}>
+                                        <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                            Распределение затрат
+                                        </Typography>
+                                        <ResponsiveContainer width="100%" height={500}>
+                                            <PieChart>
+                                                <Pie
+                                                    data={carPieData}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    outerRadius={150}
+                                                    fill="#8884d8"
+                                                    dataKey="value"
+                                                    label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                                                    labelLine={false}
+                                                    fontSize={14}
+                                                >
+                                                    {carPieData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip formatter={(value) => formatCurrency(value)} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </Paper>
+                                )}
                             </Box>
                         )}
 

@@ -87,8 +87,6 @@ const Home = () => {
 
                 if (error.response?.status === 401) {
                     setError('Ошибка авторизации. Пожалуйста, войдите в систему заново.');
-                    // Можно добавить редирект на логин
-                    // navigate('/login');
                 } else if (error.response?.status === 403) {
                     setError('Нет прав доступа к аналитике');
                 } else if (error.response?.status === 404) {
@@ -163,6 +161,7 @@ const Home = () => {
         return null;
     };
 
+    // Безопасное создание данных для круговой диаграммы
     const pieData = analyticsData && analyticsData.totalCosts > 0 ? [
         { name: 'Топливо', value: analyticsData.fuelCosts, percentage: analyticsData.fuelPercentage },
         { name: 'Сервис', value: analyticsData.serviceCosts, percentage: analyticsData.servicePercentage },
@@ -170,38 +169,52 @@ const Home = () => {
         { name: 'Доп расходы', value: analyticsData.additionalCosts, percentage: analyticsData.additionalPercentage },
     ].filter(item => item.value > 0) : [];
 
-    const monthlyChartData = monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
-        monthlyData.months.map((month, index) => ({
-            month,
-            total: monthlyData.totalExpenses?.[index] || 0,
-            fuel: monthlyData.fuelExpenses?.[index] || 0,
-            service: monthlyData.serviceExpenses?.[index] || 0,
-            spareParts: monthlyData.sparePartsExpenses?.[index] || 0,
-            additional: monthlyData.additionalExpenses?.[index] || 0,
-        })) : [];
+    // Безопасное создание данных для месячного графика
+    const monthlyChartData = React.useMemo(() => {
+        if (!monthlyData || !monthlyData.months || !Array.isArray(monthlyData.months)) {
+            return [];
+        }
 
-    const categoryChartData = {
-        fuel: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
-            monthlyData.months.map((month, index) => ({
+        return monthlyData.months.map((month, index) => ({
+            month,
+            total: (monthlyData.totalExpenses && monthlyData.totalExpenses[index]) || 0,
+            fuel: (monthlyData.fuelExpenses && monthlyData.fuelExpenses[index]) || 0,
+            service: (monthlyData.serviceExpenses && monthlyData.serviceExpenses[index]) || 0,
+            spareParts: (monthlyData.sparePartsExpenses && monthlyData.sparePartsExpenses[index]) || 0,
+            additional: (monthlyData.additionalExpenses && monthlyData.additionalExpenses[index]) || 0,
+        }));
+    }, [monthlyData]);
+
+    // Безопасное создание данных для категорий
+    const categoryChartData = React.useMemo(() => {
+        if (!monthlyData || !monthlyData.months || !Array.isArray(monthlyData.months)) {
+            return {
+                fuel: [],
+                service: [],
+                spareParts: [],
+                additional: []
+            };
+        }
+
+        return {
+            fuel: monthlyData.months.map((month, index) => ({
                 month,
-                value: monthlyData.fuelExpenses?.[index] || 0
-            })) : [],
-        service: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
-            monthlyData.months.map((month, index) => ({
+                value: (monthlyData.fuelExpenses && monthlyData.fuelExpenses[index]) || 0
+            })),
+            service: monthlyData.months.map((month, index) => ({
                 month,
-                value: monthlyData.serviceExpenses?.[index] || 0
-            })) : [],
-        spareParts: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
-            monthlyData.months.map((month, index) => ({
+                value: (monthlyData.serviceExpenses && monthlyData.serviceExpenses[index]) || 0
+            })),
+            spareParts: monthlyData.months.map((month, index) => ({
                 month,
-                value: monthlyData.sparePartsExpenses?.[index] || 0
-            })) : [],
-        additional: monthlyData && monthlyData.months && monthlyData.months.length > 0 ?
-            monthlyData.months.map((month, index) => ({
+                value: (monthlyData.sparePartsExpenses && monthlyData.sparePartsExpenses[index]) || 0
+            })),
+            additional: monthlyData.months.map((month, index) => ({
                 month,
-                value: monthlyData.additionalExpenses?.[index] || 0
-            })) : []
-    };
+                value: (monthlyData.additionalExpenses && monthlyData.additionalExpenses[index]) || 0
+            }))
+        };
+    }, [monthlyData]);
 
     if (loading) {
         return (
