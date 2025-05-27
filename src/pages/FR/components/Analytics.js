@@ -100,7 +100,7 @@ const Analytics = () => {
         }
     };
 
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = async (customMonthsBack = null) => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
@@ -112,6 +112,9 @@ const Analytics = () => {
 
             console.log('Fetching analytics data...');
 
+            // Используем переданное значение или текущее состояние
+            const actualMonthsBack = customMonthsBack !== null ? customMonthsBack : monthsBack;
+
             // Получаем общую статистику
             const totalResponse = await axios.get('http://localhost:8080/admin/analytics/total-expenses', {
                 headers: {
@@ -122,8 +125,8 @@ const Analytics = () => {
 
             console.log('Total expenses response:', totalResponse.data);
 
-            // Получаем месячную статистику
-            const monthlyResponse = await axios.get(`http://localhost:8080/admin/analytics/monthly-expenses?monthsBack=${monthsBack}`, {
+            // Получаем месячную статистику с актуальным значением
+            const monthlyResponse = await axios.get(`http://localhost:8080/admin/analytics/monthly-expenses?monthsBack=${actualMonthsBack}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -246,9 +249,16 @@ const Analytics = () => {
     const carPieData = carExpenses && carExpenses.totalCosts > 0 ? [
         { name: 'Топливо', value: carExpenses.fuelCosts || 0, percentage: carExpenses.fuelPercentage || 0 },
         { name: 'Сервис', value: carExpenses.serviceCosts || 0, percentage: carExpenses.servicePercentage || 0 },
-        { name: 'Запчасти', value: carExpenses.sparePartsCosts || 0, percentage: carExpenses.sparePartsPercentage || 0 },
         { name: 'Доп расходы', value: carExpenses.additionalCosts || 0, percentage: carExpenses.additionalPercentage || 0 },
     ].filter(item => item.value > 0) : [];
+
+    // Создание данных для барного графика автомобиля (убираем запчасти)
+    const carBarData = carExpenses ? [{
+        name: 'Расходы',
+        fuel: carExpenses.fuelCosts || 0,
+        service: carExpenses.serviceCosts || 0,
+        additional: carExpenses.additionalCosts || 0,
+    }] : [];
 
     const handleTabChange = (event, newValue) => {
         setActiveTab(newValue);
@@ -340,8 +350,10 @@ const Analytics = () => {
                                         <Select
                                             value={monthsBack}
                                             onChange={(e) => {
-                                                setMonthsBack(e.target.value);
-                                                fetchAnalytics();
+                                                const newMonthsBack = e.target.value;
+                                                setMonthsBack(newMonthsBack);
+                                                // Немедленно загружаем данные с новым значением
+                                                fetchAnalytics(newMonthsBack);
                                             }}
                                             label="Количество месяцев"
                                         >
@@ -556,8 +568,8 @@ const Analytics = () => {
                                             </CardContent>
                                         </Card>
                                     </Grid>
-                                    {costPerKm && !costPerKm.error && (
-                                        <Grid item xs={12} sm={6} md={3}>
+                                    <Grid item xs={12} sm={6} md={3}>
+                                        {costPerKm && !costPerKm.error && (
                                             <Card sx={{ background: 'linear-gradient(45deg, rgba(33, 150, 243, 0.1), rgba(33, 150, 243, 0.2))', border: '1px solid #2196f3', borderRadius: '16px' }}>
                                                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                                                     <Speed sx={{ fontSize: 40, color: '#9c27b0', mb: 2 }} />
@@ -567,58 +579,85 @@ const Analytics = () => {
                                                     </Typography>
                                                 </CardContent>
                                             </Card>
-                                        </Grid>
-                                    )}
+                                        )}
+                                    </Grid>
+                                    <Grid item xs={12} sm={6} md={3}>
+                                        {costPerKm && !costPerKm.error && (
+                                            <Card sx={{ background: 'linear-gradient(45deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.2))', border: '1px solid #4caf50', borderRadius: '16px' }}>
+                                                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                                                    <CurrencyRuble sx={{ fontSize: 40, color: '#4caf50', mb: 2 }} />
+                                                    <Typography variant="h6" sx={{ color: '#4caf50', mb: 1 }}>Стоимость км</Typography>
+                                                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                                                        {costPerKm.costPerKm ? `${costPerKm.costPerKm.toFixed(2)} ₽` : '0 ₽'}
+                                                    </Typography>
+                                                </CardContent>
+                                            </Card>
+                                        )}
+                                    </Grid>
                                 </Grid>
 
-                                {/* График структуры расходов автомобиля */}
-                                <Paper sx={{ p: 4, mb: 8, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)' }}>
-                                    <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                                        Структура расходов автомобиля
-                                    </Typography>
-                                    <ResponsiveContainer width="100%" height={400}>
-                                        <BarChart data={[carExpenses]} layout="horizontal" margin={{ top: 20, right: 30, left: 60, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                            <XAxis type="number" stroke="#fff" tickFormatter={formatCurrency} fontSize={12} />
-                                            <YAxis type="category" dataKey="name" stroke="#fff" fontSize={14} />
-                                            <Tooltip content={<CustomTooltip />} />
-                                            <Legend />
-                                            <Bar dataKey="fuelCosts" fill="#ff8c38" name="Топливо" />
-                                            <Bar dataKey="serviceCosts" fill="#76ff7a" name="Сервис" />
-                                            <Bar dataKey="sparePartsCosts" fill="#2196f3" name="Запчасти" />
-                                            <Bar dataKey="additionalCosts" fill="#ff6b6b" name="Доп расходы" />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </Paper>
+                                {/* Графики автомобиля в одну строку */}
+                                <Grid container spacing={3} sx={{ mb: 8, justifyContent: 'center' }}>
+                                    {/* График структуры расходов автомобиля */}
+                                    <Grid item xs={12} lg={6}>
+                                        <Paper sx={{ p: 3, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)', height: '480px' }}>
+                                            <Typography variant="h6" sx={{ mb: 3, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                                Структура расходов автомобиля
+                                            </Typography>
+                                            <ResponsiveContainer width="100%" height={380}>
+                                                <BarChart data={carBarData} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                                    <XAxis
+                                                        dataKey="name"
+                                                        stroke="#fff"
+                                                        fontSize={12}
+                                                        tick={false}
+                                                    />
+                                                    <YAxis stroke="#fff" tickFormatter={formatCurrency} fontSize={10} />
+                                                    <Tooltip content={<CustomTooltip />} />
+                                                    <Legend
+                                                        wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }}
+                                                        iconType="rect"
+                                                    />
+                                                    <Bar dataKey="fuel" fill="#ff8c38" name="Топливо" />
+                                                    <Bar dataKey="service" fill="#76ff7a" name="Сервис" />
+                                                    <Bar dataKey="additional" fill="#ff6b6b" name="Доп расходы" />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </Paper>
+                                    </Grid>
 
-                                {/* Круговая диаграмма автомобиля */}
-                                {carPieData.length > 0 && (
-                                    <Paper sx={{ p: 4, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)', maxWidth: '800px', mx: 'auto' }}>
-                                        <Typography variant="h5" sx={{ mb: 4, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
-                                            Распределение затрат
-                                        </Typography>
-                                        <ResponsiveContainer width="100%" height={500}>
-                                            <PieChart>
-                                                <Pie
-                                                    data={carPieData}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    outerRadius={150}
-                                                    fill="#8884d8"
-                                                    dataKey="value"
-                                                    label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
-                                                    labelLine={false}
-                                                    fontSize={14}
-                                                >
-                                                    {carPieData.map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                    ))}
-                                                </Pie>
-                                                <Tooltip formatter={(value) => formatCurrency(value)} />
-                                            </PieChart>
-                                        </ResponsiveContainer>
-                                    </Paper>
-                                )}
+                                    {/* Круговая диаграмма автомобиля */}
+                                    <Grid item xs={12} lg={6}>
+                                        {carPieData.length > 0 && (
+                                            <Paper sx={{ p: 3, borderRadius: '16px', background: 'rgba(44, 27, 71, 0.9)', border: '1px solid rgba(255, 140, 56, 0.3)', height: '480px' }}>
+                                                <Typography variant="h6" sx={{ mb: 3, color: '#ff8c38', fontWeight: 'bold', textAlign: 'center' }}>
+                                                    Распределение затрат
+                                                </Typography>
+                                                <ResponsiveContainer width="100%" height={380}>
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={carPieData}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            outerRadius={120}
+                                                            fill="#8884d8"
+                                                            dataKey="value"
+                                                            label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                                                            labelLine={false}
+                                                            fontSize={12}
+                                                        >
+                                                            {carPieData.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                            ))}
+                                                        </Pie>
+                                                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            </Paper>
+                                        )}
+                                    </Grid>
+                                </Grid>
                             </Box>
                         )}
 
