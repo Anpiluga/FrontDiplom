@@ -34,6 +34,7 @@ const SparePartForm = () => {
         quantity: '',
         unit: '',
         description: '',
+        dateTime: '', // Добавляем поле dateTime
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -134,6 +135,11 @@ const SparePartForm = () => {
 
                     console.log('Spare part fetched successfully:', response.data);
                     if (response.data) {
+                        // Обрабатываем dateTime для отображения в форме
+                        const dateTime = response.data.dateTime ?
+                            new Date(response.data.dateTime).toISOString().slice(0, 16) :
+                            '';
+
                         setFormData({
                             name: response.data.name || '',
                             category: response.data.category || '',
@@ -142,6 +148,7 @@ const SparePartForm = () => {
                             quantity: response.data.quantity || '',
                             unit: response.data.unit || '',
                             description: response.data.description || '',
+                            dateTime: dateTime,
                         });
                     } else {
                         setError('Получены некорректные данные от сервера');
@@ -154,10 +161,16 @@ const SparePartForm = () => {
                 }
             } else {
                 // Устанавливаем значения по умолчанию для новой записи
+                const now = new Date();
+                const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+
                 setFormData(prev => ({
                     ...prev,
                     category: 'CONSUMABLES',
-                    unit: 'PIECES'
+                    unit: 'PIECES',
+                    dateTime: localDateTime, // Устанавливаем текущую дату/время
                 }));
             }
         };
@@ -295,6 +308,10 @@ const SparePartForm = () => {
             errors.push('Единица измерения обязательна');
         }
 
+        if (!formData.dateTime) {
+            errors.push('Дата и время обязательны');
+        }
+
         return errors;
     };
 
@@ -323,6 +340,7 @@ const SparePartForm = () => {
                 quantity: parseFloat(formData.quantity),
                 unit: formData.unit,
                 description: formData.description.trim(),
+                dateTime: new Date(formData.dateTime).toISOString(), // Преобразуем в ISO формат
             };
 
             console.log('Submitting spare part data:', data);
@@ -623,8 +641,34 @@ const SparePartForm = () => {
                             </motion.div>
                         </Grid>
 
+                        {/* Добавляем поле для даты и времени */}
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.3 }}
+                            >
+                                <TextField
+                                    fullWidth
+                                    label="Дата и время добавления"
+                                    name="dateTime"
+                                    type="datetime-local"
+                                    value={formData.dateTime}
+                                    onChange={handleChange}
+                                    required
+                                    InputLabelProps={{ shrink: true }}
+                                    variant="outlined"
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
+                                />
+                            </motion.div>
+                        </Grid>
+
                         {/* Отображение общей суммы */}
-                        <Grid item xs={12}>
+                        <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -636,15 +680,21 @@ const SparePartForm = () => {
                                         background: 'linear-gradient(45deg, rgba(255, 140, 56, 0.1), rgba(118, 255, 122, 0.1))',
                                         border: '2px solid #ff8c38',
                                         borderRadius: '12px',
-                                        textAlign: 'center'
+                                        textAlign: 'center',
+                                        height: '56px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
                                     }}
                                 >
-                                    <Typography variant="h6" sx={{ mb: 1, color: '#ff8c38' }}>
-                                        Общая сумма
-                                    </Typography>
-                                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#76ff7a' }}>
-                                        {formatCurrency(getTotalSum())}
-                                    </Typography>
+                                    <Box>
+                                        <Typography variant="body2" sx={{ color: '#ff8c38', mb: 0.5 }}>
+                                            Общая сумма
+                                        </Typography>
+                                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#76ff7a' }}>
+                                            {formatCurrency(getTotalSum())}
+                                        </Typography>
+                                    </Box>
                                 </Paper>
                             </motion.div>
                         </Grid>
