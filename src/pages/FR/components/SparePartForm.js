@@ -20,11 +20,12 @@ import { Inventory, Category, Build } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
+import { jwtDecode } from 'jwt-decode';
 
 const SparePartForm = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { updateToken } = useContext(AuthContext);
+    const { updateToken, isTokenValid, getAuthHeaders } = useContext(AuthContext);
     const [formData, setFormData] = useState({
         name: '',
         category: '',
@@ -66,26 +67,72 @@ const SparePartForm = () => {
         { value: 'UNITS', label: 'ед.' },
     ];
 
+    // Функция для проверки и обновления токена
+    const checkAndUpdateToken = () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            console.error('No token found in localStorage');
+            setError('Ошибка авторизации: токен отсутствует');
+            navigate('/login');
+            return null;
+        }
+
+        try {
+            const decoded = jwtDecode(token);
+            const currentTime = Date.now() / 1000;
+
+            // Проверяем истек ли токен (с запасом в 5 минут)
+            if (decoded.exp && (decoded.exp - 300) < currentTime) {
+                console.error('Token expired or will expire soon');
+                localStorage.removeItem('token');
+                localStorage.removeItem('username');
+                setError('Сессия истекла. Пожалуйста, войдите в систему заново.');
+                navigate('/login');
+                return null;
+            }
+
+            // Логируем информацию о токене для отладки
+            console.log('Token is valid. Expires at:', new Date(decoded.exp * 1000));
+            console.log('Current time:', new Date());
+            console.log('Token payload:', decoded);
+
+            return token;
+        } catch (error) {
+            console.error('Error decoding token:', error);
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            setError('Ошибка токена авторизации');
+            navigate('/login');
+            return null;
+        }
+    };
+
+    // Функция для создания запроса с правильными заголовками
+    const createAxiosConfig = (token) => {
+        return {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            timeout: 10000 // 10 секунд таймаут
+        };
+    };
+
     useEffect(() => {
         const fetchSparePart = async () => {
             if (id) {
                 setLoading(true);
                 try {
-                    const token = localStorage.getItem('token');
+                    const token = checkAndUpdateToken();
+                    if (!token) return;
 
-                    if (!token) {
-                        setError('Ошибка авторизации: токен отсутствует');
-                        navigate('/login');
-                        return;
-                    }
+                    console.log('Fetching spare part with id:', id);
+                    const config = createAxiosConfig(token);
 
-                    const response = await axios.get(`http://localhost:8080/admin/spare-parts/${id}`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                    });
+                    const response = await axios.get(`http://localhost:8080/admin/spare-parts/${id}`, config);
 
+                    console.log('Spare part fetched successfully:', response.data);
                     if (response.data) {
                         setFormData({
                             name: response.data.name || '',
@@ -100,13 +147,8 @@ const SparePartForm = () => {
                         setError('Получены некорректные данные от сервера');
                     }
                 } catch (err) {
-                    console.error('Error fetching spare part', err);
-                    if (err.response && err.response.status === 403) {
-                        setError('Ошибка доступа: у вас нет прав для просмотра этой запчасти');
-                        setTimeout(() => navigate('/login'), 2000);
-                    } else {
-                        setError(`Ошибка при загрузке запчасти: ${err.message}`);
-                    }
+                    console.error('Error fetching spare part:', err);
+                    handleApiError(err, 'загрузке запчасти');
                 } finally {
                     setLoading(false);
                 }
@@ -123,6 +165,101 @@ const SparePartForm = () => {
         fetchSparePart();
     }, [id, navigate]);
 
+    // Универсальная функция для обработки ошибок API
+    const handleApiError = (err, operation) => {
+        console.error(`Error during ${operation}:`, err);
+        console.error('Error response:', err.response);
+        console.error('Error request:', err.request);
+
+        if (err.response) {
+            const { status, data, statusText } = err.response;
+            console.error('Response status:', status);
+            console.error('Response data:', data);
+            console.error('Response headers:', err.response.headers);
+
+            switch (status) {
+                case 401:
+                    setError('Ошибка авторизации. Пожалуйста, войдите в систему заново.');
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('username');
+                    setTimeout(() => navigate('/login'), 2000);
+                    break;
+
+                case 403:
+                    console.error('403 Forbidden error details:', {
+                        url: err.config?.url,
+                        method: err.config?.method,
+                        headers: err.config?.headers,
+                        data: err.config?.data
+                    });
+
+                    // Проверяем, не истек ли токен
+                    const currentToken = localStorage.getItem('token');
+                    if (currentToken) {
+                        try {
+                            const decoded = jwtDecode(currentToken);
+                            const currentTime = Date.now() / 1000;
+                            console.log('Token check for 403:', {
+                                exp: decoded.exp,
+                                currentTime,
+                                expired: decoded.exp && decoded.exp < currentTime,
+                                role: decoded.role,
+                                username: decoded.sub || decoded.username
+                            });
+
+                            if (decoded.exp && decoded.exp < currentTime) {
+                                setError('Сессия истекла. Пожалуйста, войдите в систему заново.');
+                                localStorage.removeItem('token');
+                                localStorage.removeItem('username');
+                                setTimeout(() => navigate('/login'), 2000);
+                                return;
+                            }
+                        } catch (decodeError) {
+                            console.error('Error decoding token in 403 handler:', decodeError);
+                        }
+                    }
+
+                    // Более детальное сообщение об ошибке 403
+                    let forbiddenErrorMessage = 'Ошибка доступа: у вас нет прав для выполнения этой операции.';
+
+                    if (operation.includes('сохранении')) {
+                        forbiddenErrorMessage += '\n\nВозможные причины:\n• Недостаточно прав для создания/редактирования запчастей\n• Роль пользователя не позволяет выполнить эту операцию\n• Проблемы с сервером авторизации';
+                    }
+
+                    forbiddenErrorMessage += '\n\nОбратитесь к администратору системы для получения необходимых прав доступа.';
+
+                    setError(forbiddenErrorMessage);
+                    break;
+
+                case 404:
+                    if (operation.includes('загрузке')) {
+                        setError('Запчасть не найдена');
+                    } else {
+                        setError('API не найден. Проверьте, что сервер запущен.');
+                    }
+                    break;
+
+                case 400:
+                    const validationErrorMessage = data?.message || data || 'Некорректные данные';
+                    setError(`Ошибка валидации: ${validationErrorMessage}`);
+                    break;
+
+                case 500:
+                    setError('Внутренняя ошибка сервера. Попробуйте позже или обратитесь к администратору.');
+                    break;
+
+                default:
+                    setError(`Ошибка при ${operation}: ${status} ${statusText || 'Неизвестная ошибка'}`);
+            }
+        } else if (err.request) {
+            console.error('No response received:', err.request);
+            setError(`Нет ответа от сервера при ${operation}. Проверьте:\n• Подключение к интернету\n• Доступность сервера (http://localhost:8080)\n• Настройки брандмауэра`);
+        } else {
+            console.error('Request setup error:', err.message);
+            setError(`Ошибка при ${operation}: ${err.message}`);
+        }
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -131,51 +268,81 @@ const SparePartForm = () => {
         }));
     };
 
+    const validateFormData = () => {
+        const errors = [];
+
+        if (!formData.name.trim()) {
+            errors.push('Название запчасти обязательно');
+        }
+
+        if (!formData.category) {
+            errors.push('Категория обязательна');
+        }
+
+        if (!formData.manufacturer.trim()) {
+            errors.push('Производитель обязателен');
+        }
+
+        if (!formData.pricePerUnit || isNaN(parseFloat(formData.pricePerUnit)) || parseFloat(formData.pricePerUnit) <= 0) {
+            errors.push('Цена за единицу должна быть положительным числом');
+        }
+
+        if (!formData.quantity || isNaN(parseFloat(formData.quantity)) || parseFloat(formData.quantity) <= 0) {
+            errors.push('Количество должно быть положительным числом');
+        }
+
+        if (!formData.unit) {
+            errors.push('Единица измерения обязательна');
+        }
+
+        return errors;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setError(''); // Очищаем предыдущие ошибки
+
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                setError('Ошибка авторизации: токен отсутствует');
-                navigate('/login');
+            // Валидация данных
+            const validationErrors = validateFormData();
+            if (validationErrors.length > 0) {
+                setError('Пожалуйста, исправьте следующие ошибки:\n• ' + validationErrors.join('\n• '));
+                setLoading(false);
                 return;
             }
 
+            const token = checkAndUpdateToken();
+            if (!token) return;
+
             const data = {
-                name: formData.name,
+                name: formData.name.trim(),
                 category: formData.category,
-                manufacturer: formData.manufacturer,
+                manufacturer: formData.manufacturer.trim(),
                 pricePerUnit: parseFloat(formData.pricePerUnit),
                 quantity: parseFloat(formData.quantity),
                 unit: formData.unit,
-                description: formData.description,
+                description: formData.description.trim(),
             };
 
+            console.log('Submitting spare part data:', data);
+            console.log('Using token:', token.substring(0, 20) + '...');
+
+            const config = createAxiosConfig(token);
+            let response;
+
             if (id) {
-                await axios.put(`http://localhost:8080/admin/spare-parts/${id}`, data, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                });
+                console.log(`Updating spare part with id: ${id}`);
+                response = await axios.put(`http://localhost:8080/admin/spare-parts/${id}`, data, config);
             } else {
-                await axios.post('http://localhost:8080/admin/spare-parts', data, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                });
+                console.log('Creating new spare part');
+                response = await axios.post('http://localhost:8080/admin/spare-parts', data, config);
             }
+
+            console.log('Success response:', response.data);
             navigate('/spare-parts');
         } catch (err) {
-            console.error('Error saving spare part', err);
-            if (err.response && err.response.status === 403) {
-                setError('Ошибка доступа: у вас нет прав для сохранения запчасти');
-                setTimeout(() => navigate('/login'), 2000);
-            } else {
-                setError('Ошибка при сохранении запчасти');
-            }
+            handleApiError(err, id ? 'сохранении изменений запчасти' : 'создании новой запчасти');
         } finally {
             setLoading(false);
         }
@@ -242,6 +409,7 @@ const SparePartForm = () => {
                                 theme.palette.mode === 'dark'
                                     ? '1px solid rgba(211, 47, 47, 0.3)'
                                     : '1px solid rgba(211, 47, 47, 0.5)',
+                            whiteSpace: 'pre-line' // Позволяет отображать переносы строк
                         }}
                     >
                         {error}
@@ -520,6 +688,10 @@ const SparePartForm = () => {
                                 '&:hover': {
                                     background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
                                 },
+                                '&:disabled': {
+                                    background: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
                             {loading ? <CircularProgress size={24} color="inherit" /> : (id ? 'Обновить' : 'Сохранить')}
@@ -529,6 +701,7 @@ const SparePartForm = () => {
                         <Button
                             variant="outlined"
                             onClick={() => navigate('/spare-parts')}
+                            disabled={loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -543,6 +716,10 @@ const SparePartForm = () => {
                                     borderColor: '#76ff7a',
                                     color: '#76ff7a',
                                 },
+                                '&:disabled': {
+                                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
                             Отмена
