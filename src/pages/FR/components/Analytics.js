@@ -586,7 +586,7 @@ const Analytics = () => {
                                             <Card sx={{ background: 'linear-gradient(45deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.2))', border: '1px solid #4caf50', borderRadius: '16px' }}>
                                                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                                                     <CurrencyRuble sx={{ fontSize: 40, color: '#4caf50', mb: 2 }} />
-                                                    <Typography variant="h6" sx={{ color: '#4caf50', mb: 1 }}>Стоимость км</Typography>
+                                                    <Typography variant="h6" sx={{ color: '#4caf50', mb: 1 }}>Стоимость 1 км пути</Typography>
                                                     <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
                                                         {costPerKm.costPerKm ? `${costPerKm.costPerKm.toFixed(2)} ₽` : '0 ₽'}
                                                     </Typography>

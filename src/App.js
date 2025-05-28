@@ -18,6 +18,7 @@ import AdditionalExpenseList from './pages/FR/components/AdditionalExpenseList';
 import AdditionalExpenseForm from './pages/FR/components/AdditionalExpenseForm';
 import SparePartList from './pages/FR/components/SparePartList';
 import SparePartForm from './pages/FR/components/SparePartForm';
+import ReminderList from './pages/FR/components/ReminderList';
 import Analytics from './pages/FR/components/Analytics';
 import Home from './pages/FR/components/Home';
 import ProtectedRoute from './pages/FR/components/ProtectedRoute';
@@ -47,7 +48,7 @@ function AppContent() {
 
     const showSidebar = [
         '/home', '/cars', '/drivers', '/fuel', '/service-records', '/service-tasks',
-        '/additional-expenses', '/analytics', '/spare-parts',
+        '/additional-expenses', '/analytics', '/spare-parts', '/reminders',
         '/cars/add', '/cars/edit', '/cars/view', '/drivers/add', '/drivers/edit',
         '/fuel/add', '/fuel/edit', '/service-records/add', '/service-records/edit',
         '/service-tasks/add', '/service-tasks/edit', '/additional-expenses/add',
@@ -302,6 +303,15 @@ function AppContent() {
                                 element={
                                     <ProtectedRoute>
                                         <SparePartForm />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            {/* Reminders route - НОВЫЙ */}
+                            <Route
+                                path="/reminders"
+                                element={
+                                    <ProtectedRoute>
+                                        <ReminderList />
                                     </ProtectedRoute>
                                 }
                             />

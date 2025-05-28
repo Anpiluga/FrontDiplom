@@ -14,7 +14,8 @@ import {
     Task,
     Analytics,
     Inventory,
-    Category
+    Category,
+    NotificationsActive
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 
@@ -65,7 +66,17 @@ const Sidebar = () => {
                 },
             }}
         >
-            <Box sx={{ height: 'calc(100vh - 80px)', overflow: 'hidden', pt: '80px' }}>
+            <Box sx={{
+                height: 'calc(100vh - 80px)',
+                pt: '80px',
+                overflow: 'auto',
+                // Скрываем полосы прокрутки
+                scrollbarWidth: 'none', // Firefox
+                msOverflowStyle: 'none', // Internet Explorer 10+
+                '&::-webkit-scrollbar': { // Chrome, Safari, Edge
+                    display: 'none'
+                }
+            }}>
                 <List>
                     {/* Вкладка "Главная" */}
                     <motion.div
@@ -208,6 +219,47 @@ const Sidebar = () => {
                             </motion.div>
                         </List>
                     </Collapse>
+
+                    {/* Вкладка "Напоминания" - НОВАЯ */}
+                    <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                    >
+                        <ListItem
+                            onClick={() => navigate('/reminders')}
+                            sx={{
+                                cursor: 'pointer',
+                                minHeight: '70px',
+                                padding: '16px 24px',
+                                margin: '8px 16px',
+                                borderRadius: '12px',
+                                '&:hover': {
+                                    background: (theme) =>
+                                        theme.palette.mode === 'dark'
+                                            ? 'rgba(255, 140, 56, 0.2)'
+                                            : 'rgba(0, 0, 0, 0.1)',
+                                },
+                                ...(location.pathname === '/reminders' && {
+                                    background: 'linear-gradient(45deg, #ff8c38, #76ff7a)',
+                                    '& .MuiListItemIcon-root, & .MuiListItemText-primary': {
+                                        color: '#1a1a1a',
+                                        fontWeight: 'bold',
+                                    },
+                                }),
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: '56px' }}>
+                                <NotificationsActive sx={{ color: location.pathname === '/reminders' ? '#1a1a1a' : '#ff8c38', fontSize: '28px' }} />
+                            </ListItemIcon>
+                            <ListItemText
+                                primary="Напоминания"
+                                primaryTypographyProps={{
+                                    fontSize: '18px',
+                                    fontWeight: location.pathname === '/reminders' ? 'bold' : 'normal'
+                                }}
+                            />
+                        </ListItem>
+                    </motion.div>
 
                     {/* Вкладка "Расходы" */}
                     <motion.div

@@ -38,6 +38,7 @@ import {
     Search,
     ExpandMore,
     ExpandLess,
+    CheckCircle,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -134,7 +135,7 @@ const ServiceRecordList = () => {
             } else if (err.request) {
                 setError('Не удалось получить ответ от сервера. Пожалуйста, проверьте соединение и доступность сервера.');
             } else {
-                setError(`Ошибка при загрузке сервисных записей: ${err.message}`);
+                setError(`Ошибка при загрузе сервисных записей: ${err.message}`);
             }
         } finally {
             setLoading(false);
@@ -173,6 +174,38 @@ const ServiceRecordList = () => {
         }
     };
 
+    // Новая функция для изменения статуса на "Выполнено"
+    const handleMarkCompleted = async (recordId) => {
+        if (!window.confirm('Отметить сервисную запись как выполненную?')) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Ошибка авторизации. Пожалуйста, войдите в систему.');
+                navigate('/login');
+                return;
+            }
+
+            await axios.patch(`http://localhost:8080/admin/service-records/${recordId}/complete`, {}, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            // Обновляем список записей
+            fetchServiceRecords();
+        } catch (err) {
+            console.error('Error marking service record as completed', err);
+            if (err.response && err.response.status === 403) {
+                setError('Ошибка доступа при обновлении записи. Срок действия сессии мог истечь.');
+                setTimeout(() => navigate('/login'), 2000);
+            } else {
+                setError('Ошибка при обновлении статуса сервисной записи.');
+            }
+        }
+    };
+
     const handleSearch = () => {
         fetchServiceRecords();
     };
@@ -200,17 +233,26 @@ const ServiceRecordList = () => {
         }
     };
 
-    const getStatusColor = (startDate, plannedEndDate) => {
-        const today = new Date();
-        const start = new Date(startDate);
-        const plannedEnd = plannedEndDate ? new Date(plannedEndDate) : null;
-
-        if (start > today) {
-            return { color: '#2196f3', label: 'Запланировано' };
-        } else if (plannedEnd && today > plannedEnd) {
-            return { color: '#f44336', label: 'Просрочено' };
-        } else {
+    const getStatusColor = (status, startDate, plannedEndDate) => {
+        if (status === 'COMPLETED') {
+            return { color: '#4caf50', label: 'Выполнено' };
+        } else if (status === 'CANCELLED') {
+            return { color: '#f44336', label: 'Отменено' };
+        } else if (status === 'IN_PROGRESS') {
             return { color: '#ff9800', label: 'В работе' };
+        } else {
+            // Для статуса PLANNED проверяем даты
+            const today = new Date();
+            const start = new Date(startDate);
+            const plannedEnd = plannedEndDate ? new Date(plannedEndDate) : null;
+
+            if (start > today) {
+                return { color: '#2196f3', label: 'Запланировано' };
+            } else if (plannedEnd && today > plannedEnd) {
+                return { color: '#f44336', label: 'Просрочено' };
+            } else {
+                return { color: '#ff9800', label: 'В работе' };
+            }
         }
     };
 
@@ -496,12 +538,12 @@ const ServiceRecordList = () => {
                                 <TableCell sx={{ minWidth: 300 }}>Детали</TableCell>
                                 <TableCell align="center" sx={{ minWidth: 120 }}>Сумма</TableCell>
                                 <TableCell align="center" sx={{ minWidth: 120 }}>Статус</TableCell>
-                                <TableCell align="center" sx={{ minWidth: 120 }}>Действия</TableCell>
+                                <TableCell align="center" sx={{ minWidth: 180 }}>Действия</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {sortedServiceRecords.map((record) => {
-                                const statusInfo = getStatusColor(record.startDate, record.plannedEndDate);
+                                const statusInfo = getStatusColor(record.status, record.startDate, record.plannedEndDate);
 
                                 return (
                                     <TableRow
@@ -589,6 +631,19 @@ const ServiceRecordList = () => {
                                         </TableCell>
                                         <TableCell>
                                             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                                                {record.status !== 'COMPLETED' && (
+                                                    <Tooltip title="Отметить выполненным">
+                                                        <IconButton
+                                                            onClick={() => handleMarkCompleted(record.id)}
+                                                            sx={{
+                                                                color: '#4caf50',
+                                                                '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.1)' }
+                                                            }}
+                                                        >
+                                                            <CheckCircle />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                                 <Tooltip title="Редактировать">
                                                     <IconButton
                                                         onClick={() => navigate(`/service-records/edit/${record.id}`)}
