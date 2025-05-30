@@ -174,10 +174,11 @@ const ServiceRecordList = () => {
         }
     };
 
-    // Новая функция для изменения статуса на "Выполнено"
+    // Исправленная функция для изменения статуса на "Выполнено"
     const handleMarkCompleted = async (recordId) => {
         if (!window.confirm('Отметить сервисную запись как выполненную?')) return;
 
+        setLoading(true);
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -186,23 +187,97 @@ const ServiceRecordList = () => {
                 return;
             }
 
-            await axios.patch(`http://localhost:8080/admin/service-records/${recordId}/complete`, {}, {
+            console.log(`Marking service record ${recordId} as completed`);
+
+            // Используем правильный эндпоинт из бэкенда
+            const response = await axios.post(`http://localhost:8080/admin/service-records/${recordId}/complete`, {}, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 },
+                timeout: 10000 // 10 секунд таймаут
             });
 
+            console.log('Service record marked as completed:', response.data);
+
             // Обновляем список записей
-            fetchServiceRecords();
+            await fetchServiceRecords();
+
+            // Показываем успешное сообщение
+            setError(''); // Очищаем предыдущие ошибки
+
         } catch (err) {
             console.error('Error marking service record as completed', err);
-            if (err.response && err.response.status === 403) {
-                setError('Ошибка доступа при обновлении записи. Срок действия сессии мог истечь.');
-                setTimeout(() => navigate('/login'), 2000);
+            console.error('Error response:', err.response);
+            console.error('Error request:', err.request);
+
+            if (err.response) {
+                const { status, data } = err.response;
+                console.error('Response status:', status);
+                console.error('Response data:', data);
+
+                switch (status) {
+                    case 401:
+                        setError('Ошибка авторизации. Пожалуйста, войдите в систему заново.');
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('username');
+                        setTimeout(() => navigate('/login'), 2000);
+                        break;
+                    case 403:
+                        // Более детальная обработка ошибки 403
+                        console.error('403 Forbidden error details:', {
+                            url: err.config?.url,
+                            method: err.config?.method,
+                            headers: err.config?.headers
+                        });
+
+                        // Проверяем токен
+                        const currentToken = localStorage.getItem('token');
+                        if (currentToken) {
+                            try {
+                                const { jwtDecode } = await import('jwt-decode');
+                                const decoded = jwtDecode(currentToken);
+                                const currentTime = Date.now() / 1000;
+
+                                console.log('Token check for 403:', {
+                                    exp: decoded.exp,
+                                    currentTime,
+                                    expired: decoded.exp && decoded.exp < currentTime,
+                                    role: decoded.role,
+                                    username: decoded.sub || decoded.username
+                                });
+
+                                if (decoded.exp && decoded.exp < currentTime) {
+                                    setError('Сессия истекла. Пожалуйста, войдите в систему заново.');
+                                    localStorage.removeItem('token');
+                                    localStorage.removeItem('username');
+                                    setTimeout(() => navigate('/login'), 2000);
+                                    return;
+                                }
+                            } catch (decodeError) {
+                                console.error('Error decoding token:', decodeError);
+                            }
+                        }
+
+                        setError('Ошибка доступа: у вас нет прав для отметки записи как выполненной. Обратитесь к администратору системы.');
+                        break;
+                    case 404:
+                        setError('Сервисная запись не найдена.');
+                        break;
+                    case 500:
+                        setError('Внутренняя ошибка сервера. Попробуйте позже.');
+                        break;
+                    default:
+                        setError(`Ошибка при обновлении статуса: ${status} ${err.response.statusText || 'Неизвестная ошибка'}`);
+                }
+            } else if (err.request) {
+                setError('Нет ответа от сервера. Проверьте подключение к интернету и доступность сервера.');
             } else {
-                setError('Ошибка при обновлении статуса сервисной записи.');
+                setError(`Ошибка при обновлении статуса сервисной записи: ${err.message}`);
             }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -635,9 +710,14 @@ const ServiceRecordList = () => {
                                                     <Tooltip title="Отметить выполненным">
                                                         <IconButton
                                                             onClick={() => handleMarkCompleted(record.id)}
+                                                            disabled={loading}
                                                             sx={{
                                                                 color: '#4caf50',
-                                                                '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.1)' }
+                                                                '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.1)' },
+                                                                '&:disabled': {
+                                                                    color: 'rgba(76, 175, 80, 0.5)',
+                                                                    cursor: 'not-allowed'
+                                                                }
                                                             }}
                                                         >
                                                             <CheckCircle />
@@ -647,9 +727,14 @@ const ServiceRecordList = () => {
                                                 <Tooltip title="Редактировать">
                                                     <IconButton
                                                         onClick={() => navigate(`/service-records/edit/${record.id}`)}
+                                                        disabled={loading}
                                                         sx={{
                                                             color: '#ff8c38',
-                                                            '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
+                                                            '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' },
+                                                            '&:disabled': {
+                                                                color: 'rgba(255, 140, 56, 0.5)',
+                                                                cursor: 'not-allowed'
+                                                            }
                                                         }}
                                                     >
                                                         <Edit />
@@ -658,9 +743,14 @@ const ServiceRecordList = () => {
                                                 <Tooltip title="Удалить">
                                                     <IconButton
                                                         onClick={() => handleDelete(record.id)}
+                                                        disabled={loading}
                                                         sx={{
                                                             color: '#f44336',
-                                                            '&:hover': { backgroundColor: 'rgba(244, 67, 54, 0.1)' }
+                                                            '&:hover': { backgroundColor: 'rgba(244, 67, 54, 0.1)' },
+                                                            '&:disabled': {
+                                                                color: 'rgba(244, 67, 54, 0.5)',
+                                                                cursor: 'not-allowed'
+                                                            }
                                                         }}
                                                     >
                                                         <Delete />
