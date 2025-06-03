@@ -1,3 +1,4 @@
+// Обновленный ServiceRecordList.js - исправления в таблице
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -174,7 +175,6 @@ const ServiceRecordList = () => {
         }
     };
 
-    // Исправленная функция для изменения статуса на "Выполнено"
     const handleMarkCompleted = async (recordId) => {
         if (!window.confirm('Отметить сервисную запись как выполненную?')) return;
 
@@ -189,23 +189,19 @@ const ServiceRecordList = () => {
 
             console.log(`Marking service record ${recordId} as completed`);
 
-            // Используем правильный эндпоинт из бэкенда
             const response = await axios.post(`http://localhost:8080/admin/service-records/${recordId}/complete`, {}, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                timeout: 10000 // 10 секунд таймаут
+                timeout: 10000
             });
 
             console.log('Service record marked as completed:', response.data);
 
-            // Обновляем список записей
             await fetchServiceRecords();
-
-            // Показываем успешное сообщение
-            setError(''); // Очищаем предыдущие ошибки
+            setError('');
 
         } catch (err) {
             console.error('Error marking service record as completed', err);
@@ -225,14 +221,12 @@ const ServiceRecordList = () => {
                         setTimeout(() => navigate('/login'), 2000);
                         break;
                     case 403:
-                        // Более детальная обработка ошибки 403
                         console.error('403 Forbidden error details:', {
                             url: err.config?.url,
                             method: err.config?.method,
                             headers: err.config?.headers
                         });
 
-                        // Проверяем токен
                         const currentToken = localStorage.getItem('token');
                         if (currentToken) {
                             try {
@@ -299,10 +293,17 @@ const ServiceRecordList = () => {
         }, 100);
     };
 
-    const formatDate = (dateStr) => {
+    const formatDateTime = (dateTimeStr) => {
+        if (!dateTimeStr) return 'Не указано';
         try {
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('ru-RU');
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         } catch (e) {
             return 'Некорректная дата';
         }
@@ -316,7 +317,6 @@ const ServiceRecordList = () => {
         } else if (status === 'IN_PROGRESS') {
             return { color: '#ff9800', label: 'В работе' };
         } else {
-            // Для статуса PLANNED проверяем даты
             const today = new Date();
             const start = new Date(startDate);
             const plannedEnd = plannedEndDate ? new Date(plannedEndDate) : null;
@@ -447,7 +447,7 @@ const ServiceRecordList = () => {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Дата начала с"
-                                        type="date"
+                                        type="datetime-local"
                                         value={startDateFromFilter}
                                         onChange={(e) => setStartDateFromFilter(e.target.value)}
                                         size="small"
@@ -458,7 +458,7 @@ const ServiceRecordList = () => {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Дата начала по"
-                                        type="date"
+                                        type="datetime-local"
                                         value={startDateToFilter}
                                         onChange={(e) => setStartDateToFilter(e.target.value)}
                                         size="small"
@@ -469,7 +469,7 @@ const ServiceRecordList = () => {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Дата окончания с"
-                                        type="date"
+                                        type="datetime-local"
                                         value={endDateFromFilter}
                                         onChange={(e) => setEndDateFromFilter(e.target.value)}
                                         size="small"
@@ -480,7 +480,7 @@ const ServiceRecordList = () => {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Дата окончания по"
-                                        type="date"
+                                        type="datetime-local"
                                         value={endDateToFilter}
                                         onChange={(e) => setEndDateToFilter(e.target.value)}
                                         size="small"
@@ -607,9 +607,9 @@ const ServiceRecordList = () => {
                             <TableRow>
                                 <TableCell align="center" sx={{ width: 70 }}>ID</TableCell>
                                 <TableCell sx={{ minWidth: 200 }}>Автомобиль</TableCell>
-                                <TableCell align="center" sx={{ minWidth: 120 }}>Счётчик</TableCell>
-                                <TableCell sx={{ minWidth: 120 }}>Дата начала</TableCell>
-                                <TableCell sx={{ minWidth: 120 }}>План. окончание</TableCell>
+                                <TableCell align="center" sx={{ minWidth: 120 }}>Одометр (км)</TableCell>
+                                <TableCell sx={{ minWidth: 150 }}>Дата начала</TableCell>
+                                <TableCell sx={{ minWidth: 150 }}>План. окончание</TableCell>
                                 <TableCell sx={{ minWidth: 300 }}>Детали</TableCell>
                                 <TableCell align="center" sx={{ minWidth: 120 }}>Сумма</TableCell>
                                 <TableCell align="center" sx={{ minWidth: 120 }}>Статус</TableCell>
@@ -618,7 +618,7 @@ const ServiceRecordList = () => {
                         </TableHead>
                         <TableBody>
                             {sortedServiceRecords.map((record) => {
-                                const statusInfo = getStatusColor(record.status, record.startDate, record.plannedEndDate);
+                                const statusInfo = getStatusColor(record.status, record.startDateTime, record.plannedEndDateTime);
 
                                 return (
                                     <TableRow
@@ -649,20 +649,22 @@ const ServiceRecordList = () => {
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                 <Speed sx={{ mr: 1, color: '#76ff7a', fontSize: '1.2rem' }} />
-                                                <Typography>{record.counterReading}</Typography>
+                                                <Typography sx={{ fontWeight: 'bold' }}>
+                                                    {record.counterReading}
+                                                </Typography>
                                             </Box>
                                         </TableCell>
                                         <TableCell>
                                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                                 <CalendarToday sx={{ mr: 1, color: '#2196f3', fontSize: '1.2rem' }} />
-                                                <Typography>{formatDate(record.startDate)}</Typography>
+                                                <Typography>{formatDateTime(record.startDateTime)}</Typography>
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            {record.plannedEndDate ? (
+                                            {record.plannedEndDateTime ? (
                                                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                                     <CalendarToday sx={{ mr: 1, color: '#ff9800', fontSize: '1.2rem' }} />
-                                                    <Typography>{formatDate(record.plannedEndDate)}</Typography>
+                                                    <Typography>{formatDateTime(record.plannedEndDateTime)}</Typography>
                                                 </Box>
                                             ) : (
                                                 <Typography sx={{ color: 'text.secondary' }}>Не указано</Typography>

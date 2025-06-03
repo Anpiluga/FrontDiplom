@@ -341,7 +341,7 @@ const ReminderList = () => {
                                     Дата последнего ТО
                                 </TableCell>
                                 <TableCell align="center" sx={{ minWidth: 120 }}>
-                                    Текущий одометр
+                                    Текущий одометр (км)
                                 </TableCell>
                                 <TableCell align="center" sx={{ minWidth: 150 }}>
                                     До следующего ТО
@@ -411,9 +411,12 @@ const ReminderList = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography sx={{ fontWeight: 'bold' }}>
-                                                {reminder.currentOdometer ? `${reminder.currentOdometer} км` : 'Не указано'}
-                                            </Typography>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Speed sx={{ mr: 1, color: '#ff8c38', fontSize: '1.2rem' }} />
+                                                <Typography sx={{ fontWeight: 'bold' }}>
+                                                    {reminder.currentOdometer ? `${reminder.currentOdometer}` : 'Не указано'}
+                                                </Typography>
+                                            </Box>
                                         </TableCell>
                                         <TableCell align="center">
                                             <Chip
@@ -514,7 +517,7 @@ const ReminderList = () => {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">км</InputAdornment>,
                                 }}
-                                helperText="Интервал указан в сервисной книжке автомобиля"
+                                helperText="Интервал указан в сервисной книжке автомобиля (например: 10000 км, 15000 км)"
                                 required
                             />
                             <TextField
@@ -530,7 +533,7 @@ const ReminderList = () => {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">км до ТО</InputAdornment>,
                                 }}
-                                helperText="За сколько километров до ТО показывать предупреждение"
+                                helperText="За сколько километров до ТО показывать предупреждение (обычно 500-1000 км)"
                             />
                         </Box>
                     </DialogContent>

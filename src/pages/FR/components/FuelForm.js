@@ -14,8 +14,10 @@ import {
     FormControl,
     InputLabel,
     Divider,
+    CircularProgress,
+    Chip,
 } from '@mui/material';
-import { LocalGasStation, DirectionsCar } from '@mui/icons-material';
+import { LocalGasStation, DirectionsCar, Warning, Info } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
@@ -36,6 +38,14 @@ const FuelForm = () => {
     });
     const [cars, setCars] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [validationLoading, setValidationLoading] = useState(false);
+    const [odometerValidation, setOdometerValidation] = useState({
+        minAllowed: 0,
+        isValid: true,
+        message: '',
+        lastRecord: null
+    });
 
     useEffect(() => {
         const fetchCars = async () => {
@@ -68,7 +78,6 @@ const FuelForm = () => {
         const fetchFuelEntry = async () => {
             if (id) {
                 try {
-                    // Получаем актуальный токен из localStorage
                     const token = localStorage.getItem('token');
 
                     if (!token) {
@@ -85,7 +94,6 @@ const FuelForm = () => {
                     });
 
                     if (response.data) {
-                        // Форматируем дату и время для поля ввода datetime-local
                         const dateTime = response.data.dateTime ?
                             new Date(response.data.dateTime).toISOString().slice(0, 16) :
                             '';
@@ -100,6 +108,11 @@ const FuelForm = () => {
                             totalCost: response.data.totalCost,
                             dateTime: dateTime,
                         });
+
+                        // Загружаем информацию об одометре для выбранного автомобиля
+                        if (response.data.carId) {
+                            await fetchOdometerInfo(response.data.carId);
+                        }
                     } else {
                         setError('Получены некорректные данные от сервера');
                     }
@@ -107,7 +120,6 @@ const FuelForm = () => {
                     console.error('Error fetching fuel entry', err);
                     if (err.response && err.response.status === 403) {
                         setError('Ошибка доступа: у вас нет прав для просмотра этой заправки');
-                        // Возможно, токен устарел - перенаправляем на страницу входа
                         setTimeout(() => navigate('/login'), 2000);
                     } else {
                         setError(`Ошибка при загрузке записи о заправке: ${err.message}`);
@@ -123,7 +135,7 @@ const FuelForm = () => {
                 setFormData(prev => ({
                     ...prev,
                     dateTime: localDateTime,
-                    fuelType: 'GASOLINE' // Установка значения по умолчанию
+                    fuelType: 'GASOLINE'
                 }));
             }
         };
@@ -131,6 +143,80 @@ const FuelForm = () => {
         fetchCars();
         fetchFuelEntry();
     }, [id, navigate]);
+
+    // Загружаем информацию об одометре при выборе автомобиля
+    const fetchOdometerInfo = async (carId) => {
+        if (!carId) {
+            setOdometerValidation({
+                minAllowed: 0,
+                isValid: true,
+                message: '',
+                lastRecord: null
+            });
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(`http://localhost:8080/admin/fuel-entries/counter-info/${carId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            setOdometerValidation({
+                minAllowed: response.data.minAllowedCounter || 0,
+                isValid: true,
+                message: `Минимально допустимое значение: ${response.data.minAllowedCounter || 0} км`,
+                lastRecord: response.data.lastRecord
+            });
+        } catch (err) {
+            console.error('Error fetching odometer info', err);
+            setOdometerValidation({
+                minAllowed: 0,
+                isValid: true,
+                message: 'Не удалось получить информацию об одометре',
+                lastRecord: null
+            });
+        }
+    };
+
+    // Валидация показания одометра в реальном времени
+    const validateOdometerReading = async (carId, odometerReading, dateTime) => {
+        if (!carId || !odometerReading || !dateTime) return;
+
+        setValidationLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post('http://localhost:8080/admin/fuel-entries/validate-counter', {
+                carId: carId,
+                counterReading: parseInt(odometerReading),
+                dateTime: dateTime
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            setOdometerValidation(prev => ({
+                ...prev,
+                isValid: response.data.valid,
+                message: response.data.message,
+                minAllowed: response.data.minAllowedCounter || prev.minAllowed
+            }));
+        } catch (err) {
+            console.error('Error validating odometer reading', err);
+            setOdometerValidation(prev => ({
+                ...prev,
+                isValid: false,
+                message: 'Ошибка при валидации показания одометра'
+            }));
+        } finally {
+            setValidationLoading(false);
+        }
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -152,10 +238,35 @@ const FuelForm = () => {
                 }));
             }
         }
+
+        // Загружаем информацию об одометре при выборе автомобиля
+        if (name === 'carId' && value) {
+            fetchOdometerInfo(value);
+        }
+
+        // Валидируем показание одометра при изменении
+        if (name === 'odometerReading' || name === 'dateTime') {
+            const carId = name === 'carId' ? value : formData.carId;
+            const odometerReading = name === 'odometerReading' ? value : formData.odometerReading;
+            const dateTime = name === 'dateTime' ? value : formData.dateTime;
+
+            if (carId && odometerReading && dateTime) {
+                // Debounce валидации
+                setTimeout(() => {
+                    validateOdometerReading(carId, odometerReading, dateTime);
+                }, 500);
+            }
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!odometerValidation.isValid) {
+            setError('Некорректное показание одометра. Проверьте введенные данные.');
+            return;
+        }
+
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -196,6 +307,8 @@ const FuelForm = () => {
             if (err.response && err.response.status === 403) {
                 setError('Ошибка доступа: у вас нет прав для сохранения заправки');
                 setTimeout(() => navigate('/login'), 2000);
+            } else if (err.response && err.response.status === 400) {
+                setError(err.response.data.message || 'Ошибка при сохранении записи о заправке');
             } else {
                 setError('Ошибка при сохранении записи о заправке');
             }
@@ -379,21 +492,70 @@ const FuelForm = () => {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5 }}
                             >
-                                <TextField
-                                    fullWidth
-                                    label="Одометр (км)"
-                                    name="odometerReading"
-                                    type="number"
-                                    value={formData.odometerReading}
-                                    onChange={handleChange}
-                                    required
-                                    variant="outlined"
-                                    sx={{
-                                        '& .MuiInputBase-root': {
-                                            height: '56px',
-                                        }
-                                    }}
-                                />
+                                <Box sx={{ position: 'relative' }}>
+                                    <TextField
+                                        fullWidth
+                                        label="Показание одометра (км)"
+                                        name="odometerReading"
+                                        type="number"
+                                        value={formData.odometerReading}
+                                        onChange={handleChange}
+                                        required
+                                        variant="outlined"
+                                        error={!odometerValidation.isValid}
+                                        sx={{
+                                            '& .MuiInputBase-root': {
+                                                height: '56px',
+                                            }
+                                        }}
+                                    />
+                                    {validationLoading && (
+                                        <CircularProgress
+                                            size={20}
+                                            sx={{
+                                                position: 'absolute',
+                                                right: 45,
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                color: '#ff8c38'
+                                            }}
+                                        />
+                                    )}
+                                </Box>
+
+                                {/* Информация об одометре */}
+                                <Box sx={{ mt: 1 }}>
+                                    {odometerValidation.minAllowed > 0 && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <Info sx={{ fontSize: 16, color: '#2196f3', mr: 1 }} />
+                                            <Typography variant="caption" sx={{ color: '#2196f3' }}>
+                                                Минимальное показание одометра: {odometerValidation.minAllowed} км
+                                            </Typography>
+                                        </Box>
+                                    )}
+
+                                    {!odometerValidation.isValid && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <Warning sx={{ fontSize: 16, color: '#f44336', mr: 1 }} />
+                                            <Typography variant="caption" sx={{ color: '#f44336' }}>
+                                                {odometerValidation.message}
+                                            </Typography>
+                                        </Box>
+                                    )}
+
+                                    {odometerValidation.lastRecord && (
+                                        <Chip
+                                            size="small"
+                                            label={`Последняя запись: ${odometerValidation.lastRecord.counter} км (${odometerValidation.lastRecord.type === 'fuel' ? 'заправка' : 'сервис'})`}
+                                            sx={{
+                                                backgroundColor: 'rgba(118, 255, 122, 0.1)',
+                                                color: '#76ff7a',
+                                                border: '1px solid rgba(118, 255, 122, 0.3)',
+                                                fontSize: '0.7rem'
+                                            }}
+                                        />
+                                    )}
+                                </Box>
                             </motion.div>
                         </Grid>
 
@@ -558,6 +720,7 @@ const FuelForm = () => {
                         <Button
                             variant="contained"
                             type="submit"
+                            disabled={!odometerValidation.isValid || loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -569,9 +732,13 @@ const FuelForm = () => {
                                 '&:hover': {
                                     background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
                                 },
+                                '&:disabled': {
+                                    background: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
-                            {id ? 'Обновить' : 'Сохранить'}
+                            {loading ? <CircularProgress size={24} color="inherit" /> : (id ? 'Обновить' : 'Сохранить')}
                         </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

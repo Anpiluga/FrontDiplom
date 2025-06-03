@@ -14,8 +14,9 @@ import {
     FormControl,
     InputLabel,
     Divider,
+    CircularProgress,
 } from '@mui/material';
-import { Task, Assignment } from '@mui/icons-material';
+import { Task, Assignment, Info } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
@@ -31,6 +32,8 @@ const ServiceTaskForm = () => {
     });
     const [serviceRecords, setServiceRecords] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [selectedServiceRecordInfo, setSelectedServiceRecordInfo] = useState(null);
 
     useEffect(() => {
         const fetchServiceRecords = async () => {
@@ -84,6 +87,10 @@ const ServiceTaskForm = () => {
                             taskName: response.data.taskName,
                             taskDescription: response.data.taskDescription || '',
                         });
+
+                        // Находим информацию о выбранной сервисной записи
+                        const selectedRecord = serviceRecords.find(record => record.id === response.data.serviceRecordId);
+                        setSelectedServiceRecordInfo(selectedRecord);
                     } else {
                         setError('Получены некорректные данные от сервера');
                     }
@@ -103,8 +110,22 @@ const ServiceTaskForm = () => {
         fetchServiceTask();
     }, [id, navigate]);
 
+    // Обновляем информацию о выбранной сервисной записи при изменении списка записей
+    useEffect(() => {
+        if (formData.serviceRecordId && serviceRecords.length > 0) {
+            const selectedRecord = serviceRecords.find(record => record.id.toString() === formData.serviceRecordId.toString());
+            setSelectedServiceRecordInfo(selectedRecord);
+        }
+    }, [formData.serviceRecordId, serviceRecords]);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
+
+        if (name === 'serviceRecordId') {
+            const selectedRecord = serviceRecords.find(record => record.id.toString() === value.toString());
+            setSelectedServiceRecordInfo(selectedRecord);
+        }
+
         setFormData((prev) => ({
             ...prev,
             [name]: value,
@@ -113,6 +134,8 @@ const ServiceTaskForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
+
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -151,6 +174,52 @@ const ServiceTaskForm = () => {
             } else {
                 setError('Ошибка при сохранении сервисной задачи');
             }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const formatDateTime = (dateTimeStr) => {
+        if (!dateTimeStr) return 'Не указано';
+        try {
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            return 'Некорректная дата';
+        }
+    };
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'COMPLETED':
+                return '#4caf50';
+            case 'IN_PROGRESS':
+                return '#ff9800';
+            case 'CANCELLED':
+                return '#f44336';
+            case 'PLANNED':
+            default:
+                return '#2196f3';
+        }
+    };
+
+    const getStatusLabel = (status) => {
+        switch (status) {
+            case 'COMPLETED':
+                return 'Выполнено';
+            case 'IN_PROGRESS':
+                return 'В работе';
+            case 'CANCELLED':
+                return 'Отменено';
+            case 'PLANNED':
+            default:
+                return 'Запланировано';
         }
     };
 
@@ -204,6 +273,12 @@ const ServiceTaskForm = () => {
                     >
                         {error}
                     </Alert>
+                )}
+
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                        <CircularProgress color="primary" />
+                    </Box>
                 )}
             </motion.div>
 
@@ -314,10 +389,12 @@ const ServiceTaskForm = () => {
                                                 <Assignment sx={{ color: '#ff8c38' }} />
                                                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                                                     <Typography sx={{ fontWeight: 'bold' }}>
-                                                        Сервисная запись по автомобилю {record.carDetails}
+                                                        ID {record.id} - {record.carDetails}
                                                     </Typography>
                                                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                                        Начата: {new Date(record.startDate).toLocaleDateString('ru-RU')}
+                                                        Одометр: {record.counterReading} км •
+                                                        Начата: {formatDateTime(record.startDateTime)} •
+                                                        Статус: {getStatusLabel(record.status)}
                                                     </Typography>
                                                 </Box>
                                             </MenuItem>
@@ -327,11 +404,92 @@ const ServiceTaskForm = () => {
                             </motion.div>
                         </Grid>
 
+                        {/* Информация о выбранной сервисной записи */}
+                        {selectedServiceRecordInfo && (
+                            <Grid item xs={12}>
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.1 }}
+                                >
+                                    <Paper
+                                        sx={{
+                                            p: 3,
+                                            background: 'linear-gradient(45deg, rgba(33, 150, 243, 0.1), rgba(33, 150, 243, 0.2))',
+                                            border: '1px solid #2196f3',
+                                            borderRadius: '12px',
+                                        }}
+                                    >
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                            <Info sx={{ color: '#2196f3', mr: 1 }} />
+                                            <Typography variant="h6" sx={{ color: '#2196f3', fontWeight: 'bold' }}>
+                                                Детали сервисной записи
+                                            </Typography>
+                                        </Box>
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={3}>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                    Автомобиль:
+                                                </Typography>
+                                                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                                                    {selectedServiceRecordInfo.carDetails}
+                                                </Typography>
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                    Показание одометра:
+                                                </Typography>
+                                                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                                                    {selectedServiceRecordInfo.counterReading} км
+                                                </Typography>
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                    Дата начала:
+                                                </Typography>
+                                                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                                                    {formatDateTime(selectedServiceRecordInfo.startDateTime)}
+                                                </Typography>
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                    Статус:
+                                                </Typography>
+                                                <Box sx={{
+                                                    display: 'inline-block',
+                                                    px: 2,
+                                                    py: 0.5,
+                                                    borderRadius: '12px',
+                                                    backgroundColor: `${getStatusColor(selectedServiceRecordInfo.status)}20`,
+                                                    border: `1px solid ${getStatusColor(selectedServiceRecordInfo.status)}`,
+                                                    color: getStatusColor(selectedServiceRecordInfo.status),
+                                                    fontWeight: 'bold',
+                                                    fontSize: '0.875rem'
+                                                }}>
+                                                    {getStatusLabel(selectedServiceRecordInfo.status)}
+                                                </Box>
+                                            </Grid>
+                                            {selectedServiceRecordInfo.details && (
+                                                <Grid item xs={12}>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                        Детали работ:
+                                                    </Typography>
+                                                    <Typography variant="body1">
+                                                        {selectedServiceRecordInfo.details}
+                                                    </Typography>
+                                                </Grid>
+                                            )}
+                                        </Grid>
+                                    </Paper>
+                                </motion.div>
+                            </Grid>
+                        )}
+
                         <Grid item xs={12}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.1 }}
+                                transition={{ duration: 0.5, delay: 0.2 }}
                             >
                                 <TextField
                                     fullWidth
@@ -355,7 +513,7 @@ const ServiceTaskForm = () => {
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.2 }}
+                                transition={{ duration: 0.5, delay: 0.3 }}
                             >
                                 <TextField
                                     fullWidth
@@ -378,6 +536,7 @@ const ServiceTaskForm = () => {
                         <Button
                             variant="contained"
                             type="submit"
+                            disabled={loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -389,15 +548,20 @@ const ServiceTaskForm = () => {
                                 '&:hover': {
                                     background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
                                 },
+                                '&:disabled': {
+                                    background: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
-                            {id ? 'Обновить' : 'Сохранить'}
+                            {loading ? <CircularProgress size={24} color="inherit" /> : (id ? 'Обновить' : 'Сохранить')}
                         </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button
                             variant="outlined"
                             onClick={() => navigate('/service-tasks')}
+                            disabled={loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -412,6 +576,10 @@ const ServiceTaskForm = () => {
                                     borderColor: '#76ff7a',
                                     color: '#76ff7a',
                                 },
+                                '&:disabled': {
+                                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
                             Отмена

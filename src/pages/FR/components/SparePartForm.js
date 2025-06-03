@@ -15,8 +15,9 @@ import {
     InputLabel,
     Divider,
     CircularProgress,
+    InputAdornment,
 } from '@mui/material';
-import { Inventory, Category, Build } from '@mui/icons-material';
+import { Inventory, Category, Build, Speed, Warning } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
@@ -34,8 +35,13 @@ const SparePartForm = () => {
         quantity: '',
         unit: '',
         description: '',
-        dateTime: '', // Добавляем поле dateTime
+        dateTime: '',
+        carId: '', // Добавляем поле для автомобиля
+        odometerReading: '', // Добавляем поле для показания одометра
     });
+    const [cars, setCars] = useState([]);
+    const [minOdometerReading, setMinOdometerReading] = useState(0);
+    const [odometerInfo, setOdometerInfo] = useState(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -82,7 +88,6 @@ const SparePartForm = () => {
             const decoded = jwtDecode(token);
             const currentTime = Date.now() / 1000;
 
-            // Проверяем истек ли токен (с запасом в 5 минут)
             if (decoded.exp && (decoded.exp - 300) < currentTime) {
                 console.error('Token expired or will expire soon');
                 localStorage.removeItem('token');
@@ -92,11 +97,7 @@ const SparePartForm = () => {
                 return null;
             }
 
-            // Логируем информацию о токене для отладки
             console.log('Token is valid. Expires at:', new Date(decoded.exp * 1000));
-            console.log('Current time:', new Date());
-            console.log('Token payload:', decoded);
-
             return token;
         } catch (error) {
             console.error('Error decoding token:', error);
@@ -116,9 +117,64 @@ const SparePartForm = () => {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            timeout: 10000 // 10 секунд таймаут
+            timeout: 10000
         };
     };
+
+    // Функция для загрузки автомобилей
+    const fetchCars = async () => {
+        try {
+            const token = checkAndUpdateToken();
+            if (!token) return;
+
+            const config = createAxiosConfig(token);
+            const response = await axios.get('http://localhost:8080/admin/cars', config);
+            setCars(response.data || []);
+        } catch (err) {
+            console.error('Error fetching cars:', err);
+            setCars([]);
+        }
+    };
+
+    // Функция для получения информации об одометре
+    const fetchOdometerInfo = async (carId) => {
+        if (!carId) {
+            setMinOdometerReading(0);
+            setOdometerInfo(null);
+            return;
+        }
+
+        try {
+            const token = checkAndUpdateToken();
+            if (!token) return;
+
+            const config = createAxiosConfig(token);
+
+            // Получаем информацию об одометре через API для заправок (они используют тот же сервис валидации)
+            const response = await axios.get(`http://localhost:8080/admin/fuel-entries/counter-info/${carId}`, config);
+
+            if (response.data) {
+                const minAllowed = response.data.minAllowedCounter || 0;
+                setMinOdometerReading(minAllowed);
+                setOdometerInfo(response.data);
+                console.log('Odometer info for car', carId, ':', response.data);
+            }
+        } catch (err) {
+            console.error('Error fetching odometer info:', err);
+            setMinOdometerReading(0);
+            setOdometerInfo(null);
+        }
+    };
+
+    useEffect(() => {
+        fetchCars();
+    }, []);
+
+    useEffect(() => {
+        if (formData.carId) {
+            fetchOdometerInfo(formData.carId);
+        }
+    }, [formData.carId]);
 
     useEffect(() => {
         const fetchSparePart = async () => {
@@ -135,7 +191,6 @@ const SparePartForm = () => {
 
                     console.log('Spare part fetched successfully:', response.data);
                     if (response.data) {
-                        // Обрабатываем dateTime для отображения в форме
                         const dateTime = response.data.dateTime ?
                             new Date(response.data.dateTime).toISOString().slice(0, 16) :
                             '';
@@ -149,6 +204,8 @@ const SparePartForm = () => {
                             unit: response.data.unit || '',
                             description: response.data.description || '',
                             dateTime: dateTime,
+                            carId: response.data.carId || '',
+                            odometerReading: response.data.odometerReading || '',
                         });
                     } else {
                         setError('Получены некорректные данные от сервера');
@@ -170,7 +227,7 @@ const SparePartForm = () => {
                     ...prev,
                     category: 'CONSUMABLES',
                     unit: 'PIECES',
-                    dateTime: localDateTime, // Устанавливаем текущую дату/время
+                    dateTime: localDateTime,
                 }));
             }
         };
@@ -181,14 +238,9 @@ const SparePartForm = () => {
     // Универсальная функция для обработки ошибок API
     const handleApiError = (err, operation) => {
         console.error(`Error during ${operation}:`, err);
-        console.error('Error response:', err.response);
-        console.error('Error request:', err.request);
 
         if (err.response) {
             const { status, data, statusText } = err.response;
-            console.error('Response status:', status);
-            console.error('Response data:', data);
-            console.error('Response headers:', err.response.headers);
 
             switch (status) {
                 case 401:
@@ -199,26 +251,11 @@ const SparePartForm = () => {
                     break;
 
                 case 403:
-                    console.error('403 Forbidden error details:', {
-                        url: err.config?.url,
-                        method: err.config?.method,
-                        headers: err.config?.headers,
-                        data: err.config?.data
-                    });
-
-                    // Проверяем, не истек ли токен
                     const currentToken = localStorage.getItem('token');
                     if (currentToken) {
                         try {
                             const decoded = jwtDecode(currentToken);
                             const currentTime = Date.now() / 1000;
-                            console.log('Token check for 403:', {
-                                exp: decoded.exp,
-                                currentTime,
-                                expired: decoded.exp && decoded.exp < currentTime,
-                                role: decoded.role,
-                                username: decoded.sub || decoded.username
-                            });
 
                             if (decoded.exp && decoded.exp < currentTime) {
                                 setError('Сессия истекла. Пожалуйста, войдите в систему заново.');
@@ -232,15 +269,11 @@ const SparePartForm = () => {
                         }
                     }
 
-                    // Более детальное сообщение об ошибке 403
                     let forbiddenErrorMessage = 'Ошибка доступа: у вас нет прав для выполнения этой операции.';
-
                     if (operation.includes('сохранении')) {
                         forbiddenErrorMessage += '\n\nВозможные причины:\n• Недостаточно прав для создания/редактирования запчастей\n• Роль пользователя не позволяет выполнить эту операцию\n• Проблемы с сервером авторизации';
                     }
-
                     forbiddenErrorMessage += '\n\nОбратитесь к администратору системы для получения необходимых прав доступа.';
-
                     setError(forbiddenErrorMessage);
                     break;
 
@@ -265,10 +298,8 @@ const SparePartForm = () => {
                     setError(`Ошибка при ${operation}: ${status} ${statusText || 'Неизвестная ошибка'}`);
             }
         } else if (err.request) {
-            console.error('No response received:', err.request);
             setError(`Нет ответа от сервера при ${operation}. Проверьте:\n• Подключение к интернету\n• Доступность сервера (http://localhost:8080)\n• Настройки брандмауэра`);
         } else {
-            console.error('Request setup error:', err.message);
             setError(`Ошибка при ${operation}: ${err.message}`);
         }
     };
@@ -312,16 +343,32 @@ const SparePartForm = () => {
             errors.push('Дата и время обязательны');
         }
 
+        // Валидация автомобиля и одометра
+        if (!formData.carId) {
+            errors.push('Выбор автомобиля обязателен');
+        }
+
+        if (!formData.odometerReading || isNaN(parseInt(formData.odometerReading))) {
+            errors.push('Показание одометра обязательно и должно быть числом');
+        } else {
+            const odometerValue = parseInt(formData.odometerReading);
+            if (odometerValue < 0) {
+                errors.push('Показание одометра не может быть отрицательным');
+            }
+            if (odometerValue < minOdometerReading) {
+                errors.push(`Показание одометра не может быть меньше ${minOdometerReading} км`);
+            }
+        }
+
         return errors;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setError(''); // Очищаем предыдущие ошибки
+        setError('');
 
         try {
-            // Валидация данных
             const validationErrors = validateFormData();
             if (validationErrors.length > 0) {
                 setError('Пожалуйста, исправьте следующие ошибки:\n• ' + validationErrors.join('\n• '));
@@ -340,11 +387,12 @@ const SparePartForm = () => {
                 quantity: parseFloat(formData.quantity),
                 unit: formData.unit,
                 description: formData.description.trim(),
-                dateTime: new Date(formData.dateTime).toISOString(), // Преобразуем в ISO формат
+                dateTime: new Date(formData.dateTime).toISOString(),
+                carId: parseInt(formData.carId),
+                odometerReading: parseInt(formData.odometerReading),
             };
 
             console.log('Submitting spare part data:', data);
-            console.log('Using token:', token.substring(0, 20) + '...');
 
             const config = createAxiosConfig(token);
             let response;
@@ -379,6 +427,18 @@ const SparePartForm = () => {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         }).format(amount);
+    };
+
+    const formatOdometerInfo = () => {
+        if (!odometerInfo || !odometerInfo.lastRecord || Object.keys(odometerInfo.lastRecord).length === 0) {
+            return 'Нет предыдущих записей';
+        }
+
+        const lastRecord = odometerInfo.lastRecord;
+        const date = new Date(lastRecord.dateTime).toLocaleString('ru-RU');
+        const typeLabel = lastRecord.type === 'fuel' ? 'Заправка' : 'Сервис';
+
+        return `${lastRecord.counter} км (${typeLabel}, ${date})`;
     };
 
     return (
@@ -427,7 +487,7 @@ const SparePartForm = () => {
                                 theme.palette.mode === 'dark'
                                     ? '1px solid rgba(211, 47, 47, 0.3)'
                                     : '1px solid rgba(211, 47, 47, 0.5)',
-                            whiteSpace: 'pre-line' // Позволяет отображать переносы строк
+                            whiteSpace: 'pre-line'
                         }}
                     >
                         {error}
@@ -484,54 +544,30 @@ const SparePartForm = () => {
                     <Divider sx={{ mb: 4 }} />
 
                     <Grid container spacing={5} sx={{ flex: 1 }}>
+                        {/* Выбор автомобиля */}
                         <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5 }}
                             >
-                                <TextField
-                                    fullWidth
-                                    label="Название запчасти"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    required
-                                    variant="outlined"
-                                    placeholder="например, Масляный фильтр"
-                                    sx={{
-                                        '& .MuiInputBase-root': {
-                                            height: '56px',
-                                        }
-                                    }}
-                                />
-                            </motion.div>
-                        </Grid>
-
-                        <Grid item xs={12} md={6}>
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5 }}
-                            >
-                                <FormControl fullWidth>
-                                    <InputLabel>Категория</InputLabel>
+                                <FormControl fullWidth required>
+                                    <InputLabel>Автомобиль</InputLabel>
                                     <Select
-                                        name="category"
-                                        value={formData.category}
+                                        name="carId"
+                                        value={formData.carId}
                                         onChange={handleChange}
-                                        label="Категория"
-                                        required
+                                        label="Автомобиль"
                                         sx={{
                                             height: '56px',
                                         }}
-                                        startAdornment={
-                                            formData.category ? <Category sx={{ color: '#ff8c38', mr: 1 }} /> : null
-                                        }
                                     >
-                                        {categories.map((category) => (
-                                            <MenuItem key={category.value} value={category.value}>
-                                                {category.label}
+                                        <MenuItem value="" disabled>
+                                            Выберите автомобиль
+                                        </MenuItem>
+                                        {cars.map((car) => (
+                                            <MenuItem key={car.id} value={car.id}>
+                                                {car.brand} {car.model} ({car.licensePlate})
                                             </MenuItem>
                                         ))}
                                     </Select>
@@ -539,46 +575,50 @@ const SparePartForm = () => {
                             </motion.div>
                         </Grid>
 
-                        <Grid item xs={12} md={6}>
-                            <motion.div
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.1 }}
-                            >
-                                <TextField
-                                    fullWidth
-                                    label="Производитель"
-                                    name="manufacturer"
-                                    value={formData.manufacturer}
-                                    onChange={handleChange}
-                                    required
-                                    variant="outlined"
-                                    placeholder="например, Bosch"
-                                    sx={{
-                                        '& .MuiInputBase-root': {
-                                            height: '56px',
-                                        }
-                                    }}
-                                />
-                            </motion.div>
-                        </Grid>
-
+                        {/* Показание одометра */}
                         <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.1 }}
+                                transition={{ duration: 0.5 }}
                             >
                                 <TextField
                                     fullWidth
-                                    label="Цена за единицу (руб)"
-                                    name="pricePerUnit"
+                                    label="Показание одометра"
+                                    name="odometerReading"
                                     type="number"
-                                    inputProps={{ step: "0.01", min: "0" }}
-                                    value={formData.pricePerUnit}
+                                    value={formData.odometerReading}
                                     onChange={handleChange}
                                     required
                                     variant="outlined"
+                                    inputProps={{
+                                        min: minOdometerReading,
+                                        step: 1
+                                    }}
+                                    InputProps={{
+                                        endAdornment: <InputAdornment position="end">км</InputAdornment>,
+                                    }}
+                                    helperText={
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                            {minOdometerReading > 0 && (
+                                                <>
+                                                    <Warning sx={{ fontSize: '16px', color: '#ff8c38' }} />
+                                                    <Typography variant="caption" sx={{ color: '#ff8c38' }}>
+                                                        Минимальное значение: {minOdometerReading} км
+                                                    </Typography>
+                                                </>
+                                            )}
+                                            {odometerInfo && (
+                                                <>
+                                                    <Speed sx={{ fontSize: '16px', color: '#76ff7a', ml: 1 }} />
+                                                    <Typography variant="caption" sx={{ color: '#76ff7a' }}>
+                                                        Последняя запись: {formatOdometerInfo()}
+                                                    </Typography>
+                                                </>
+                                            )}
+                                        </Box>
+                                    }
+                                    error={formData.odometerReading && parseInt(formData.odometerReading) < minOdometerReading}
                                     sx={{
                                         '& .MuiInputBase-root': {
                                             height: '56px',
@@ -588,36 +628,12 @@ const SparePartForm = () => {
                             </motion.div>
                         </Grid>
 
-                        <Grid item xs={12} md={6}>
-                            <motion.div
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.2 }}
-                            >
-                                <TextField
-                                    fullWidth
-                                    label="Количество"
-                                    name="quantity"
-                                    type="number"
-                                    inputProps={{ step: "0.01", min: "0" }}
-                                    value={formData.quantity}
-                                    onChange={handleChange}
-                                    required
-                                    variant="outlined"
-                                    sx={{
-                                        '& .MuiInputBase-root': {
-                                            height: '56px',
-                                        }
-                                    }}
-                                />
-                            </motion.div>
-                        </Grid>
-
+                        {/* Единица измерения */}
                         <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.2 }}
+                                transition={{ duration: 0.5, delay: 0.3 }}
                             >
                                 <FormControl fullWidth>
                                     <InputLabel>Единица измерения</InputLabel>
@@ -641,16 +657,16 @@ const SparePartForm = () => {
                             </motion.div>
                         </Grid>
 
-                        {/* Добавляем поле для даты и времени */}
+                        {/* Дата и время добавления */}
                         <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.3 }}
+                                transition={{ duration: 0.5, delay: 0.4 }}
                             >
                                 <TextField
                                     fullWidth
-                                    label="Дата и время добавления"
+                                    label="Дата и время установки/покупки"
                                     name="dateTime"
                                     type="datetime-local"
                                     value={formData.dateTime}
@@ -658,6 +674,7 @@ const SparePartForm = () => {
                                     required
                                     InputLabelProps={{ shrink: true }}
                                     variant="outlined"
+                                    helperText="Укажите дату и время установки запчасти или покупки"
                                     sx={{
                                         '& .MuiInputBase-root': {
                                             height: '56px',
@@ -672,7 +689,7 @@ const SparePartForm = () => {
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.3 }}
+                                transition={{ duration: 0.5, delay: 0.4 }}
                             >
                                 <Paper
                                     sx={{
@@ -699,11 +716,12 @@ const SparePartForm = () => {
                             </motion.div>
                         </Grid>
 
+                        {/* Описание */}
                         <Grid item xs={12}>
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.4 }}
+                                transition={{ duration: 0.5, delay: 0.5 }}
                             >
                                 <TextField
                                     fullWidth
@@ -714,7 +732,7 @@ const SparePartForm = () => {
                                     value={formData.description}
                                     onChange={handleChange}
                                     variant="outlined"
-                                    placeholder="Дополнительная информация о запчасти..."
+                                    placeholder="Дополнительная информация о запчасти, причина замены, особенности установки..."
                                 />
                             </motion.div>
                         </Grid>

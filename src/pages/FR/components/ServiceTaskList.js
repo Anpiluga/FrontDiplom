@@ -23,6 +23,7 @@ import {
     MenuItem,
     Grid,
     Collapse,
+    Chip,
 } from '@mui/material';
 import {
     Edit,
@@ -33,6 +34,9 @@ import {
     Search,
     ExpandMore,
     ExpandLess,
+    Speed,
+    CalendarToday,
+    DirectionsCar,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -168,6 +172,50 @@ const ServiceTaskList = () => {
         }, 100);
     };
 
+    const formatDateTime = (dateTimeStr) => {
+        if (!dateTimeStr) return 'Не указано';
+        try {
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            return 'Некорректная дата';
+        }
+    };
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'COMPLETED':
+                return '#4caf50';
+            case 'IN_PROGRESS':
+                return '#ff9800';
+            case 'CANCELLED':
+                return '#f44336';
+            case 'PLANNED':
+            default:
+                return '#2196f3';
+        }
+    };
+
+    const getStatusLabel = (status) => {
+        switch (status) {
+            case 'COMPLETED':
+                return 'Выполнено';
+            case 'IN_PROGRESS':
+                return 'В работе';
+            case 'CANCELLED':
+                return 'Отменено';
+            case 'PLANNED':
+            default:
+                return 'Запланировано';
+        }
+    };
+
     const sortedServiceTasks = [...serviceTasks].sort((a, b) => b.id - a.id);
 
     return (
@@ -275,7 +323,7 @@ const ServiceTaskList = () => {
                                             <MenuItem value="">Все записи</MenuItem>
                                             {serviceRecords.map((record) => (
                                                 <MenuItem key={record.id} value={record.id}>
-                                                    ID {record.id} - {record.carDetails} (начата: {new Date(record.startDate).toLocaleDateString('ru-RU')})
+                                                    ID {record.id} - {record.carDetails} (одометр: {record.counterReading} км, начата: {formatDateTime(record.startDateTime)})
                                                 </MenuItem>
                                             ))}
                                         </Select>
@@ -378,79 +426,119 @@ const ServiceTaskList = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {sortedServiceTasks.map((task) => (
-                                <TableRow
-                                    key={task.id}
-                                    component={motion.tr}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ duration: 0.5 }}
-                                    sx={{
-                                        '&:hover': {
-                                            background: (theme) =>
-                                                theme.palette.mode === 'dark'
-                                                    ? 'rgba(255, 255, 255, 0.05)'
-                                                    : 'rgba(0, 0, 0, 0.03)',
-                                        },
-                                        borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
-                                    }}
-                                >
-                                    <TableCell align="center">{task.id}</TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Assignment sx={{ mr: 1, color: '#ff8c38' }} />
-                                            <Typography sx={{ fontWeight: 'bold' }}>
-                                                {task.serviceRecordDetails}
+                            {sortedServiceTasks.map((task) => {
+                                // Извлекаем информацию о сервисной записи из serviceRecordDetails
+                                const serviceRecord = serviceRecords.find(record => record.id === task.serviceRecordId);
+
+                                return (
+                                    <TableRow
+                                        key={task.id}
+                                        component={motion.tr}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ duration: 0.5 }}
+                                        sx={{
+                                            '&:hover': {
+                                                background: (theme) =>
+                                                    theme.palette.mode === 'dark'
+                                                        ? 'rgba(255, 255, 255, 0.05)'
+                                                        : 'rgba(0, 0, 0, 0.03)',
+                                            },
+                                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
+                                        }}
+                                    >
+                                        <TableCell align="center">{task.id}</TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                    <Assignment sx={{ mr: 1, color: '#ff8c38' }} />
+                                                    <Typography sx={{ fontWeight: 'bold' }}>
+                                                        {task.serviceRecordDetails}
+                                                    </Typography>
+                                                </Box>
+                                                {serviceRecord && (
+                                                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', ml: 3 }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <DirectionsCar sx={{ fontSize: '1rem', color: '#76ff7a' }} />
+                                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                                                {serviceRecord.carDetails}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <Speed sx={{ fontSize: '1rem', color: '#2196f3' }} />
+                                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                                                Одометр: {serviceRecord.counterReading} км
+                                                            </Typography>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <CalendarToday sx={{ fontSize: '1rem', color: '#ff9800' }} />
+                                                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                                                Начата: {formatDateTime(serviceRecord.startDateTime)}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Chip
+                                                            label={getStatusLabel(serviceRecord.status)}
+                                                            size="small"
+                                                            sx={{
+                                                                backgroundColor: `${getStatusColor(serviceRecord.status)}20`,
+                                                                color: getStatusColor(serviceRecord.status),
+                                                                border: `1px solid ${getStatusColor(serviceRecord.status)}`,
+                                                                fontSize: '0.7rem',
+                                                                height: '20px'
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                )}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                <Task sx={{ mr: 1, color: '#76ff7a', fontSize: '1.2rem' }} />
+                                                <Typography sx={{ fontWeight: 'bold' }}>{task.taskName}</Typography>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography
+                                                sx={{
+                                                    maxWidth: 300,
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                                title={task.taskDescription}
+                                            >
+                                                {task.taskDescription || 'Нет описания'}
                                             </Typography>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <Task sx={{ mr: 1, color: '#76ff7a', fontSize: '1.2rem' }} />
-                                            <Typography sx={{ fontWeight: 'bold' }}>{task.taskName}</Typography>
-                                        </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Typography
-                                            sx={{
-                                                maxWidth: 300,
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap'
-                                            }}
-                                            title={task.taskDescription}
-                                        >
-                                            {task.taskDescription || 'Нет описания'}
-                                        </Typography>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                                            <Tooltip title="Редактировать">
-                                                <IconButton
-                                                    onClick={() => navigate(`/service-tasks/edit/${task.id}`)}
-                                                    sx={{
-                                                        color: '#ff8c38',
-                                                        '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
-                                                    }}
-                                                >
-                                                    <Edit />
-                                                </IconButton>
-                                            </Tooltip>
-                                            <Tooltip title="Удалить">
-                                                <IconButton
-                                                    onClick={() => handleDelete(task.id)}
-                                                    sx={{
-                                                        color: '#f44336',
-                                                        '&:hover': { backgroundColor: 'rgba(244, 67, 54, 0.1)' }
-                                                    }}
-                                                >
-                                                    <Delete />
-                                                </IconButton>
-                                            </Tooltip>
-                                        </Box>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                                                <Tooltip title="Редактировать">
+                                                    <IconButton
+                                                        onClick={() => navigate(`/service-tasks/edit/${task.id}`)}
+                                                        sx={{
+                                                            color: '#ff8c38',
+                                                            '&:hover': { backgroundColor: 'rgba(255, 140, 56, 0.1)' }
+                                                        }}
+                                                    >
+                                                        <Edit />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Удалить">
+                                                    <IconButton
+                                                        onClick={() => handleDelete(task.id)}
+                                                        sx={{
+                                                            color: '#f44336',
+                                                            '&:hover': { backgroundColor: 'rgba(244, 67, 54, 0.1)' }
+                                                        }}
+                                                    >
+                                                        <Delete />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
 
                             {sortedServiceTasks.length === 0 && !loading && (
                                 <TableRow>

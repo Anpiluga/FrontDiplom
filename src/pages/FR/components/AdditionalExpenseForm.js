@@ -14,6 +14,7 @@ import {
     FormControl,
     InputLabel,
     Divider,
+    CircularProgress,
 } from '@mui/material';
 import { AttachMoney, DirectionsCar } from '@mui/icons-material';
 import axios from 'axios';
@@ -33,6 +34,8 @@ const AdditionalExpenseForm = () => {
     });
     const [cars, setCars] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [minOdometerInfo, setMinOdometerInfo] = useState(null);
 
     useEffect(() => {
         const fetchCars = async () => {
@@ -92,6 +95,11 @@ const AdditionalExpenseForm = () => {
                             dateTime: dateTime,
                             description: response.data.description || '',
                         });
+
+                        // Загружаем информацию об одометре для выбранного автомобиля
+                        if (response.data.carId) {
+                            fetchOdometerInfo(response.data.carId);
+                        }
                     } else {
                         setError('Получены некорректные данные от сервера');
                     }
@@ -121,16 +129,55 @@ const AdditionalExpenseForm = () => {
         fetchExpense();
     }, [id, navigate]);
 
+    const fetchOdometerInfo = async (carId) => {
+        if (!carId) {
+            setMinOdometerInfo(null);
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            // Получаем информацию о минимальном показании одометра
+            const response = await axios.get(`http://localhost:8080/admin/fuel-entries/counter-info/${carId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 5000
+            });
+
+            console.log('Odometer info response:', response.data);
+            setMinOdometerInfo(response.data);
+        } catch (err) {
+            console.error('Error fetching odometer info:', err);
+            setMinOdometerInfo(null);
+        }
+    };
+
+    const handleCarChange = (carId) => {
+        setFormData(prev => ({ ...prev, carId }));
+        fetchOdometerInfo(carId);
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
+
+        if (name === 'carId') {
+            handleCarChange(value);
+        } else {
+            setFormData((prev) => ({
+                ...prev,
+                [name]: value,
+            }));
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
+
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -171,6 +218,8 @@ const AdditionalExpenseForm = () => {
             } else {
                 setError('Ошибка при сохранении расхода');
             }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -184,6 +233,14 @@ const AdditionalExpenseForm = () => {
         'Комиссия банка',
         'Прочее'
     ];
+
+    const getSelectedCarDetails = () => {
+        if (!formData.carId) return null;
+        const selectedCar = cars.find(car => car.id.toString() === formData.carId.toString());
+        return selectedCar;
+    };
+
+    const selectedCar = getSelectedCarDetails();
 
     return (
         <Container
@@ -235,6 +292,12 @@ const AdditionalExpenseForm = () => {
                     >
                         {error}
                     </Alert>
+                )}
+
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                        <CircularProgress color="primary" />
+                    </Box>
                 )}
             </motion.div>
 
@@ -346,7 +409,7 @@ const AdditionalExpenseForm = () => {
                                                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                                                     <Typography sx={{ fontWeight: 'bold' }}>{car.brand} {car.model}</Typography>
                                                     <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                                                        {car.licensePlate}
+                                                        {car.licensePlate} • Одометр: {car.odometr || 0} км
                                                     </Typography>
                                                 </Box>
                                             </MenuItem>
@@ -395,7 +458,7 @@ const AdditionalExpenseForm = () => {
                                     label="Сумма (руб)"
                                     name="price"
                                     type="number"
-                                    inputProps={{ step: "0.01" }}
+                                    inputProps={{ step: "0.01", min: "0" }}
                                     value={formData.price}
                                     onChange={handleChange}
                                     required
@@ -434,11 +497,63 @@ const AdditionalExpenseForm = () => {
                             </motion.div>
                         </Grid>
 
+                        {/* Информация об одометре */}
+                        {selectedCar && (
+                            <Grid item xs={12}>
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.2 }}
+                                >
+                                    <Paper
+                                        sx={{
+                                            p: 3,
+                                            background: 'linear-gradient(45deg, rgba(33, 150, 243, 0.1), rgba(33, 150, 243, 0.2))',
+                                            border: '1px solid #2196f3',
+                                            borderRadius: '12px',
+                                        }}
+                                    >
+                                        <Typography variant="h6" sx={{ color: '#2196f3', mb: 2, fontWeight: 'bold' }}>
+                                            Информация об одометре
+                                        </Typography>
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={4}>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                    Текущий одометр:
+                                                </Typography>
+                                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                                    {selectedCar.odometr || 0} км
+                                                </Typography>
+                                            </Grid>
+                                            {minOdometerInfo && (
+                                                <Grid item xs={12} md={4}>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                        Последнее зафиксированное показание:
+                                                    </Typography>
+                                                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                                        {minOdometerInfo.minAllowedCounter || 0} км
+                                                    </Typography>
+                                                </Grid>
+                                            )}
+                                            <Grid item xs={12} md={4}>
+                                                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+                                                    Примечание:
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ color: '#ff9800' }}>
+                                                    Дополнительные расходы не требуют указания одометра
+                                                </Typography>
+                                            </Grid>
+                                        </Grid>
+                                    </Paper>
+                                </motion.div>
+                            </Grid>
+                        )}
+
                         <Grid item xs={12}>
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.2 }}
+                                transition={{ duration: 0.5, delay: 0.3 }}
                             >
                                 <TextField
                                     fullWidth
@@ -461,6 +576,7 @@ const AdditionalExpenseForm = () => {
                         <Button
                             variant="contained"
                             type="submit"
+                            disabled={loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -472,15 +588,20 @@ const AdditionalExpenseForm = () => {
                                 '&:hover': {
                                     background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
                                 },
+                                '&:disabled': {
+                                    background: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
-                            {id ? 'Обновить' : 'Сохранить'}
+                            {loading ? <CircularProgress size={24} color="inherit" /> : (id ? 'Обновить' : 'Сохранить')}
                         </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button
                             variant="outlined"
                             onClick={() => navigate('/additional-expenses')}
+                            disabled={loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -495,6 +616,10 @@ const AdditionalExpenseForm = () => {
                                     borderColor: '#76ff7a',
                                     color: '#76ff7a',
                                 },
+                                '&:disabled': {
+                                    borderColor: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
                             Отмена

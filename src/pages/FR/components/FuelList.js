@@ -353,7 +353,7 @@ const FuelList = () => {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Дата с"
-                                        type="date"
+                                        type="datetime-local"
                                         value={dateFromFilter}
                                         onChange={(e) => setDateFromFilter(e.target.value)}
                                         size="small"
@@ -364,7 +364,7 @@ const FuelList = () => {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Дата по"
-                                        type="date"
+                                        type="datetime-local"
                                         value={dateToFilter}
                                         onChange={(e) => setDateToFilter(e.target.value)}
                                         size="small"
@@ -491,7 +491,7 @@ const FuelList = () => {
                             <TableRow>
                                 <TableCell align="center" sx={{ width: 70 }}>ID</TableCell>
                                 <TableCell sx={{ minWidth: 180 }}>Автомобиль</TableCell>
-                                <TableCell align="center" sx={{ minWidth: 100 }}>Одометр</TableCell>
+                                <TableCell align="center" sx={{ minWidth: 100 }}>Одометр (км)</TableCell>
                                 <TableCell sx={{ minWidth: 150 }}>Заправка</TableCell>
                                 <TableCell align="center" sx={{ minWidth: 120 }}>Тип топлива</TableCell>
                                 <TableCell align="center" sx={{ minWidth: 100 }}>Объём (л)</TableCell>
@@ -534,7 +534,9 @@ const FuelList = () => {
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                 <Speed sx={{ mr: 1, color: '#76ff7a', fontSize: '1.2rem' }} />
-                                                <Typography>{entry.odometerReading} км</Typography>
+                                                <Typography sx={{ fontWeight: 'bold' }}>
+                                                    {entry.odometerReading}
+                                                </Typography>
                                             </Box>
                                         </TableCell>
                                         <TableCell>{entry.gasStation}</TableCell>

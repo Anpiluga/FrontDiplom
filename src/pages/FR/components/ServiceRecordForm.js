@@ -14,8 +14,10 @@ import {
     FormControl,
     InputLabel,
     Divider,
+    CircularProgress,
+    Chip,
 } from '@mui/material';
-import { Assignment, DirectionsCar } from '@mui/icons-material';
+import { Assignment, DirectionsCar, Warning, Info } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
@@ -27,13 +29,21 @@ const ServiceRecordForm = () => {
     const [formData, setFormData] = useState({
         carId: '',
         counterReading: '',
-        startDate: '',
-        plannedEndDate: '',
+        startDateTime: '',
+        plannedEndDateTime: '',
         details: '',
         totalCost: '',
     });
     const [cars, setCars] = useState([]);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [validationLoading, setValidationLoading] = useState(false);
+    const [odometerValidation, setOdometerValidation] = useState({
+        minAllowed: 0,
+        isValid: true,
+        message: '',
+        lastRecord: null
+    });
 
     useEffect(() => {
         const fetchCars = async () => {
@@ -82,14 +92,27 @@ const ServiceRecordForm = () => {
                     });
 
                     if (response.data) {
+                        // Форматируем дату и время для поля ввода datetime-local
+                        const startDateTime = response.data.startDateTime ?
+                            new Date(response.data.startDateTime).toISOString().slice(0, 16) :
+                            '';
+                        const plannedEndDateTime = response.data.plannedEndDateTime ?
+                            new Date(response.data.plannedEndDateTime).toISOString().slice(0, 16) :
+                            '';
+
                         setFormData({
                             carId: response.data.carId,
                             counterReading: response.data.counterReading,
-                            startDate: response.data.startDate,
-                            plannedEndDate: response.data.plannedEndDate || '',
+                            startDateTime: startDateTime,
+                            plannedEndDateTime: plannedEndDateTime,
                             details: response.data.details || '',
                             totalCost: response.data.totalCost || '',
                         });
+
+                        // Загружаем информацию об одометре для выбранного автомобиля
+                        if (response.data.carId) {
+                            await fetchOdometerInfo(response.data.carId);
+                        }
                     } else {
                         setError('Получены некорректные данные от сервера');
                     }
@@ -103,11 +126,15 @@ const ServiceRecordForm = () => {
                     }
                 }
             } else {
-                // Устанавливаем текущую дату для нового ввода
-                const today = new Date().toISOString().split('T')[0];
+                // Устанавливаем текущую дату и время для нового ввода
+                const now = new Date();
+                const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+
                 setFormData(prev => ({
                     ...prev,
-                    startDate: today,
+                    startDateTime: localDateTime,
                 }));
             }
         };
@@ -116,16 +143,117 @@ const ServiceRecordForm = () => {
         fetchServiceRecord();
     }, [id, navigate]);
 
+    // Загружаем информацию об одометре при выборе автомобиля
+    const fetchOdometerInfo = async (carId) => {
+        if (!carId) {
+            setOdometerValidation({
+                minAllowed: 0,
+                isValid: true,
+                message: '',
+                lastRecord: null
+            });
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(`http://localhost:8080/admin/service-records/counter-info/${carId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            setOdometerValidation({
+                minAllowed: response.data.minAllowedCounter || 0,
+                isValid: true,
+                message: `Минимально допустимое значение: ${response.data.minAllowedCounter || 0} км`,
+                lastRecord: response.data.lastRecord
+            });
+        } catch (err) {
+            console.error('Error fetching odometer info', err);
+            setOdometerValidation({
+                minAllowed: 0,
+                isValid: true,
+                message: 'Не удалось получить информацию об одометре',
+                lastRecord: null
+            });
+        }
+    };
+
+    // Валидация показания одометра в реальном времени
+    const validateOdometerReading = async (carId, counterReading, startDateTime) => {
+        if (!carId || !counterReading || !startDateTime) return;
+
+        setValidationLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            // Используем тот же эндпоинт валидации, что и для заправок
+            const response = await axios.post('http://localhost:8080/admin/fuel-entries/validate-counter', {
+                carId: carId,
+                counterReading: parseInt(counterReading),
+                dateTime: startDateTime
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+            });
+
+            setOdometerValidation(prev => ({
+                ...prev,
+                isValid: response.data.valid,
+                message: response.data.message,
+                minAllowed: response.data.minAllowedCounter || prev.minAllowed
+            }));
+        } catch (err) {
+            console.error('Error validating odometer reading', err);
+            setOdometerValidation(prev => ({
+                ...prev,
+                isValid: false,
+                message: 'Ошибка при валидации показания одометра'
+            }));
+        } finally {
+            setValidationLoading(false);
+        }
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
             ...prev,
             [name]: value,
         }));
+
+        // Загружаем информацию об одометре при выборе автомобиля
+        if (name === 'carId' && value) {
+            fetchOdometerInfo(value);
+        }
+
+        // Валидируем показание одометра при изменении
+        if (name === 'counterReading' || name === 'startDateTime') {
+            const carId = name === 'carId' ? value : formData.carId;
+            const counterReading = name === 'counterReading' ? value : formData.counterReading;
+            const startDateTime = name === 'startDateTime' ? value : formData.startDateTime;
+
+            if (carId && counterReading && startDateTime) {
+                // Debounce валидации
+                setTimeout(() => {
+                    validateOdometerReading(carId, counterReading, startDateTime);
+                }, 500);
+            }
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!odometerValidation.isValid) {
+            setError('Некорректное показание одометра. Проверьте введенные данные.');
+            return;
+        }
+
+        setLoading(true);
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -137,8 +265,8 @@ const ServiceRecordForm = () => {
             const data = {
                 carId: parseInt(formData.carId),
                 counterReading: parseInt(formData.counterReading),
-                startDate: formData.startDate,
-                plannedEndDate: formData.plannedEndDate || null,
+                startDateTime: new Date(formData.startDateTime).toISOString(),
+                plannedEndDateTime: formData.plannedEndDateTime ? new Date(formData.plannedEndDateTime).toISOString() : null,
                 details: formData.details,
                 totalCost: formData.totalCost ? parseFloat(formData.totalCost) : null,
             };
@@ -164,9 +292,13 @@ const ServiceRecordForm = () => {
             if (err.response && err.response.status === 403) {
                 setError('Ошибка доступа: у вас нет прав для сохранения сервисной записи');
                 setTimeout(() => navigate('/login'), 2000);
+            } else if (err.response && err.response.status === 400) {
+                setError(err.response.data.message || 'Ошибка при сохранении сервисной записи');
             } else {
                 setError('Ошибка при сохранении сервисной записи');
             }
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -347,21 +479,70 @@ const ServiceRecordForm = () => {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5 }}
                             >
-                                <TextField
-                                    fullWidth
-                                    label="Показание счётчика"
-                                    name="counterReading"
-                                    type="number"
-                                    value={formData.counterReading}
-                                    onChange={handleChange}
-                                    required
-                                    variant="outlined"
-                                    sx={{
-                                        '& .MuiInputBase-root': {
-                                            height: '56px',
-                                        }
-                                    }}
-                                />
+                                <Box sx={{ position: 'relative' }}>
+                                    <TextField
+                                        fullWidth
+                                        label="Показание одометра (км)"
+                                        name="counterReading"
+                                        type="number"
+                                        value={formData.counterReading}
+                                        onChange={handleChange}
+                                        required
+                                        variant="outlined"
+                                        error={!odometerValidation.isValid}
+                                        sx={{
+                                            '& .MuiInputBase-root': {
+                                                height: '56px',
+                                            }
+                                        }}
+                                    />
+                                    {validationLoading && (
+                                        <CircularProgress
+                                            size={20}
+                                            sx={{
+                                                position: 'absolute',
+                                                right: 45,
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                color: '#ff8c38'
+                                            }}
+                                        />
+                                    )}
+                                </Box>
+
+                                {/* Информация об одометре */}
+                                <Box sx={{ mt: 1 }}>
+                                    {odometerValidation.minAllowed > 0 && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <Info sx={{ fontSize: 16, color: '#2196f3', mr: 1 }} />
+                                            <Typography variant="caption" sx={{ color: '#2196f3' }}>
+                                                Минимальное показание одометра: {odometerValidation.minAllowed} км
+                                            </Typography>
+                                        </Box>
+                                    )}
+
+                                    {!odometerValidation.isValid && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                            <Warning sx={{ fontSize: 16, color: '#f44336', mr: 1 }} />
+                                            <Typography variant="caption" sx={{ color: '#f44336' }}>
+                                                {odometerValidation.message}
+                                            </Typography>
+                                        </Box>
+                                    )}
+
+                                    {odometerValidation.lastRecord && (
+                                        <Chip
+                                            size="small"
+                                            label={`Последняя запись: ${odometerValidation.lastRecord.counter} км (${odometerValidation.lastRecord.type === 'fuel' ? 'заправка' : 'сервис'})`}
+                                            sx={{
+                                                backgroundColor: 'rgba(118, 255, 122, 0.1)',
+                                                color: '#76ff7a',
+                                                border: '1px solid rgba(118, 255, 122, 0.3)',
+                                                fontSize: '0.7rem'
+                                            }}
+                                        />
+                                    )}
+                                </Box>
                             </motion.div>
                         </Grid>
 
@@ -373,10 +554,10 @@ const ServiceRecordForm = () => {
                             >
                                 <TextField
                                     fullWidth
-                                    label="Дата начала работ"
-                                    name="startDate"
-                                    type="date"
-                                    value={formData.startDate}
+                                    label="Дата и время начала работ"
+                                    name="startDateTime"
+                                    type="datetime-local"
+                                    value={formData.startDateTime}
                                     onChange={handleChange}
                                     required
                                     InputLabelProps={{ shrink: true }}
@@ -398,10 +579,10 @@ const ServiceRecordForm = () => {
                             >
                                 <TextField
                                     fullWidth
-                                    label="Планируемая дата окончания"
-                                    name="plannedEndDate"
-                                    type="date"
-                                    value={formData.plannedEndDate}
+                                    label="Планируемая дата и время окончания"
+                                    name="plannedEndDateTime"
+                                    type="datetime-local"
+                                    value={formData.plannedEndDateTime}
                                     onChange={handleChange}
                                     InputLabelProps={{ shrink: true }}
                                     variant="outlined"
@@ -465,6 +646,7 @@ const ServiceRecordForm = () => {
                         <Button
                             variant="contained"
                             type="submit"
+                            disabled={!odometerValidation.isValid || loading}
                             sx={{
                                 px: 5,
                                 py: 1.5,
@@ -476,9 +658,13 @@ const ServiceRecordForm = () => {
                                 '&:hover': {
                                     background: 'linear-gradient(45deg, #76ff7a, #ff8c38)',
                                 },
+                                '&:disabled': {
+                                    background: 'rgba(255, 255, 255, 0.3)',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                }
                             }}
                         >
-                            {id ? 'Обновить' : 'Сохранить'}
+                            {loading ? <CircularProgress size={24} color="inherit" /> : (id ? 'Обновить' : 'Сохранить')}
                         </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
