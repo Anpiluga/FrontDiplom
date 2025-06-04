@@ -17,7 +17,7 @@ import {
     CircularProgress,
     InputAdornment,
 } from '@mui/material';
-import { Inventory, Category, Build, Speed, Warning } from '@mui/icons-material';
+import { Inventory, Category, Build, Speed, Warning, AttachMoney, Numbers } from '@mui/icons-material';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
@@ -36,8 +36,8 @@ const SparePartForm = () => {
         unit: '',
         description: '',
         dateTime: '',
-        carId: '', // Добавляем поле для автомобиля
-        odometerReading: '', // Добавляем поле для показания одометра
+        carId: '',
+        odometerReading: '',
     });
     const [cars, setCars] = useState([]);
     const [minOdometerReading, setMinOdometerReading] = useState(0);
@@ -544,12 +544,213 @@ const SparePartForm = () => {
                     <Divider sx={{ mb: 4 }} />
 
                     <Grid container spacing={5} sx={{ flex: 1 }}>
-                        {/* Выбор автомобиля */}
+                        {/* Название запчасти */}
                         <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ duration: 0.5 }}
+                            >
+                                <TextField
+                                    fullWidth
+                                    label="Название запчасти"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    required
+                                    variant="outlined"
+                                    placeholder="Введите название запчасти"
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Inventory sx={{ color: '#ff8c38' }} />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
+                                />
+                            </motion.div>
+                        </Grid>
+
+                        {/* Категория */}
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.1 }}
+                            >
+                                <FormControl fullWidth required>
+                                    <InputLabel>Категория</InputLabel>
+                                    <Select
+                                        name="category"
+                                        value={formData.category}
+                                        onChange={handleChange}
+                                        label="Категория"
+                                        startAdornment={
+                                            <InputAdornment position="start">
+                                                <Category sx={{ color: '#ff8c38', ml: 1 }} />
+                                            </InputAdornment>
+                                        }
+                                        sx={{
+                                            height: '56px',
+                                        }}
+                                    >
+                                        {categories.map((category) => (
+                                            <MenuItem key={category.value} value={category.value}>
+                                                {category.label}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </motion.div>
+                        </Grid>
+
+                        {/* Производитель */}
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.2 }}
+                            >
+                                <TextField
+                                    fullWidth
+                                    label="Производитель"
+                                    name="manufacturer"
+                                    value={formData.manufacturer}
+                                    onChange={handleChange}
+                                    required
+                                    variant="outlined"
+                                    placeholder="Введите производителя"
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Build sx={{ color: '#76ff7a' }} />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
+                                />
+                            </motion.div>
+                        </Grid>
+
+                        {/* Цена за единицу */}
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.3 }}
+                            >
+                                <TextField
+                                    fullWidth
+                                    label="Цена за единицу"
+                                    name="pricePerUnit"
+                                    type="number"
+                                    value={formData.pricePerUnit}
+                                    onChange={handleChange}
+                                    required
+                                    variant="outlined"
+                                    placeholder="0.00"
+                                    inputProps={{
+                                        min: 0,
+                                        step: 0.01
+                                    }}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <AttachMoney sx={{ color: '#ff8c38' }} />
+                                            </InputAdornment>
+                                        ),
+                                        endAdornment: <InputAdornment position="end">₽</InputAdornment>,
+                                    }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
+                                />
+                            </motion.div>
+                        </Grid>
+
+                        {/* Количество */}
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.4 }}
+                            >
+                                <TextField
+                                    fullWidth
+                                    label="Количество"
+                                    name="quantity"
+                                    type="number"
+                                    value={formData.quantity}
+                                    onChange={handleChange}
+                                    required
+                                    variant="outlined"
+                                    placeholder="0"
+                                    inputProps={{
+                                        min: 0,
+                                        step: 0.01
+                                    }}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Numbers sx={{ color: '#76ff7a' }} />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                    sx={{
+                                        '& .MuiInputBase-root': {
+                                            height: '56px',
+                                        }
+                                    }}
+                                />
+                            </motion.div>
+                        </Grid>
+
+                        {/* Единица измерения */}
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.5 }}
+                            >
+                                <FormControl fullWidth>
+                                    <InputLabel>Единица измерения</InputLabel>
+                                    <Select
+                                        name="unit"
+                                        value={formData.unit}
+                                        onChange={handleChange}
+                                        label="Единица измерения"
+                                        required
+                                        sx={{
+                                            height: '56px',
+                                        }}
+                                    >
+                                        {units.map((unit) => (
+                                            <MenuItem key={unit.value} value={unit.value}>
+                                                {unit.label}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </motion.div>
+                        </Grid>
+
+                        {/* Выбор автомобиля */}
+                        <Grid item xs={12} md={6}>
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5, delay: 0.6 }}
                             >
                                 <FormControl fullWidth required>
                                     <InputLabel>Автомобиль</InputLabel>
@@ -580,7 +781,7 @@ const SparePartForm = () => {
                             <motion.div
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5 }}
+                                transition={{ duration: 0.5, delay: 0.7 }}
                             >
                                 <TextField
                                     fullWidth
@@ -596,6 +797,11 @@ const SparePartForm = () => {
                                         step: 1
                                     }}
                                     InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <Speed sx={{ color: '#2196f3' }} />
+                                            </InputAdornment>
+                                        ),
                                         endAdornment: <InputAdornment position="end">км</InputAdornment>,
                                     }}
                                     helperText={
@@ -628,41 +834,12 @@ const SparePartForm = () => {
                             </motion.div>
                         </Grid>
 
-                        {/* Единица измерения */}
-                        <Grid item xs={12} md={6}>
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.3 }}
-                            >
-                                <FormControl fullWidth>
-                                    <InputLabel>Единица измерения</InputLabel>
-                                    <Select
-                                        name="unit"
-                                        value={formData.unit}
-                                        onChange={handleChange}
-                                        label="Единица измерения"
-                                        required
-                                        sx={{
-                                            height: '56px',
-                                        }}
-                                    >
-                                        {units.map((unit) => (
-                                            <MenuItem key={unit.value} value={unit.value}>
-                                                {unit.label}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                            </motion.div>
-                        </Grid>
-
                         {/* Дата и время добавления */}
                         <Grid item xs={12} md={6}>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.5, delay: 0.4 }}
+                                transition={{ duration: 0.5, delay: 0.8 }}
                             >
                                 <TextField
                                     fullWidth
@@ -689,7 +866,7 @@ const SparePartForm = () => {
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.4 }}
+                                transition={{ duration: 0.5, delay: 0.9 }}
                             >
                                 <Paper
                                     sx={{
@@ -721,7 +898,7 @@ const SparePartForm = () => {
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.5 }}
+                                transition={{ duration: 0.5, delay: 1.0 }}
                             >
                                 <TextField
                                     fullWidth
